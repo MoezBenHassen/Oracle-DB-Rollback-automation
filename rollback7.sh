@@ -75,6 +75,7 @@ for sql_file in "$INPUT_DIR"/*.sql; do
 
         # INSERT INTO table VALUES (...)
         elif [[ "$trimmed_line" =~ [Ii][Nn][Ss][Ee][Rr][Tt][[:space:]]+[Ii][Nn][Tt][Oo][[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+[Vv][Aa][Ll][Uu][Ee][Ss][[:space:]]*\((.*)\) ]]; then
+
             table="${BASH_REMATCH[1]}"
             values="${BASH_REMATCH[2]}"
 
