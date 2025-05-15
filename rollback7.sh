@@ -23,7 +23,7 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             echo "  -- Revert: DROP added column (from EXECUTE IMMEDIATE)" >> "$rollback_file"
             echo "  EXECUTE IMMEDIATE 'ALTER TABLE $table DROP COLUMN ${col%% *}';" >> "$rollback_file"
 
-        # Direct ALTER TABLE ADD (not inside quotes)
+        # Direct ALTER TABLE ADD
         elif [[ "$trimmed_line" =~ ALTER[[:space:]]+TABLE[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+ADD[[:space:]]+([^;]+) ]]; then
             table="${BASH_REMATCH[1]}"
             col="${BASH_REMATCH[2]}"
@@ -44,8 +44,8 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             echo "  -- MODIFY inside EXECUTE IMMEDIATE detected, manual revert required" >> "$rollback_file"
             echo "  -- $trimmed_line" >> "$rollback_file"
 
-        # INSERT INTO ... (columns) VALUES (...)
-        elif [[ "$trimmed_line" =~ INSERT[[:space:]]+INTO[[:space:]]+([a-zA-Z_0-9]+)[[:space:]]*\(([^\)]+)\)[[:space:]]*VALUES[[:space:]]*\(([^\)]+)\) ]]; then
+        # INSERT INTO (columns) VALUES (...)
+        elif [[ "$trimmed_line" =~ INSERT[[:space:]]+INTO[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]*\(([^\)]+)\)[[:space:]]*VALUES[[:space:]]*\(([^\)]+)\) ]]; then
             table="${BASH_REMATCH[1]}"
             columns="${BASH_REMATCH[2]}"
             values="${BASH_REMATCH[3]}"
@@ -65,6 +65,22 @@ for sql_file in "$INPUT_DIR"/*.sql; do
                 echo "  DELETE FROM $table WHERE $where_clause;" >> "$rollback_file"
             else
                 echo "  -- INSERT parse error (column/value count mismatch): $trimmed_line" >> "$rollback_file"
+            fi
+
+        # INSERT INTO table VALUES (...)
+        elif [[ "$trimmed_line" =~ INSERT[[:space:]]+INTO[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+VALUES[[:space:]]*\((.*)\) ]]; then
+            table="${BASH_REMATCH[1]}"
+            values="${BASH_REMATCH[2]}"
+
+            echo "  -- Revert: DELETE inserted row (column names not specified)" >> "$rollback_file"
+
+            # Try to guess rollback condition from values (e.g. look for 'COL-xxxx')
+            rollback_hint=$(echo "$values" | grep -o "'COL-[^']*'" | head -1)
+
+            if [[ -n "$rollback_hint" ]]; then
+                echo "  -- Suggested rollback (review manually): DELETE FROM $table WHERE propertyname = $rollback_hint;" >> "$rollback_file"
+            else
+                echo "  -- DELETE FROM $table WHERE [manual condition required];" >> "$rollback_file"
             fi
         else
             echo "$line" >> "$rollback_file"
