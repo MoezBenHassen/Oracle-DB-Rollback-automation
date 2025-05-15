@@ -16,12 +16,13 @@ for sql_file in "$INPUT_DIR"/*.sql; do
         # Normalize whitespace
         trimmed_line="$(echo "$line" | sed 's/^[[:space:]]*//')"
 
-        # Case-insensitive EXECUTE IMMEDIATE '...ALTER TABLE ... ADD ...'
+        # EXECUTE IMMEDIATE '...ALTER TABLE ... ADD ...'
         if [[ "$trimmed_line" =~ [Ee][Xx][Ee][Cc][Uu][Tt][Ee][[:space:]]+[Ii][Mm][Mm][Ee][Dd][Ii][Aa][Tt][Ee][[:space:]]*\'[[:space:]]*[Aa][Ll][Tt][Ee][Rr][[:space:]]+[Tt][Aa][Bb][Ll][Ee][[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+[Aa][Dd][Dd][[:space:]]+([^\'\;]+) ]]; then
             table="${BASH_REMATCH[1]}"
             col="${BASH_REMATCH[2]}"
             echo "  -- Revert: DROP added column (from EXECUTE IMMEDIATE)" >> "$rollback_file"
             echo "  EXECUTE IMMEDIATE 'ALTER TABLE $table DROP COLUMN ${col%% *}';" >> "$rollback_file"
+            continue
 
         # Direct ALTER TABLE ADD
         elif [[ "$trimmed_line" =~ ALTER[[:space:]]+TABLE[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+ADD[[:space:]]+([^;]+) ]]; then
@@ -29,20 +30,24 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             col="${BASH_REMATCH[2]}"
             echo "  -- Revert: DROP added column" >> "$rollback_file"
             echo "  ALTER TABLE $table DROP COLUMN ${col%% *};" >> "$rollback_file"
+            continue
 
         # ALTER TABLE DROP COLUMN
         elif [[ "$trimmed_line" =~ ALTER[[:space:]]+TABLE[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+DROP[[:space:]]+COLUMN[[:space:]]+([^;]+) ]]; then
             echo "  -- Original DROP COLUMN detected, manual revert required: $trimmed_line" >> "$rollback_file"
+            continue
 
         # ALTER TABLE MODIFY
         elif [[ "$trimmed_line" =~ ALTER[[:space:]]+TABLE[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+MODIFY[[:space:]]+([^;]+) ]]; then
             echo "  -- MODIFY detected, manual revert required" >> "$rollback_file"
             echo "  -- $trimmed_line" >> "$rollback_file"
+            continue
 
         # EXECUTE IMMEDIATE 'ALTER TABLE ... MODIFY ...'
         elif [[ "$trimmed_line" =~ [Ee][Xx][Ee][Cc][Uu][Tt][Ee][[:space:]]+[Ii][Mm][Mm][Ee][Dd][Ii][Aa][Tt][Ee][[:space:]]*\'[[:space:]]*[Aa][Ll][Tt][Ee][Rr][[:space:]]+[Tt][Aa][Bb][Ll][Ee][[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[Mm][Oo][Dd][Ii][Ff][Yy][[:space:]]+.* ]]; then
             echo "  -- MODIFY inside EXECUTE IMMEDIATE detected, manual revert required" >> "$rollback_file"
             echo "  -- $trimmed_line" >> "$rollback_file"
+            continue
 
         # INSERT INTO (columns) VALUES (...)
         elif [[ "$trimmed_line" =~ INSERT[[:space:]]+INTO[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]*\(([^\)]+)\)[[:space:]]*VALUES[[:space:]]*\(([^\)]+)\) ]]; then
@@ -66,15 +71,15 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             else
                 echo "  -- INSERT parse error (column/value count mismatch): $trimmed_line" >> "$rollback_file"
             fi
+            continue
 
         # INSERT INTO table VALUES (...)
-        elif [[ "$trimmed_line" =~ INSERT[[:space:]]+INTO[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+VALUES[[:space:]]*\((.*)\) ]]; then
+        elif [[ "$trimmed_line" =~ [Ii][Nn][Ss][Ee][Rr][Tt][[:space:]]+[Ii][Nn][Tt][Oo][[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+[Vv][Aa][Ll][Uu][Ee][Ss][[:space:]]*\((.*)\) ]]; then
             table="${BASH_REMATCH[1]}"
             values="${BASH_REMATCH[2]}"
 
             echo "  -- Revert: DELETE inserted row (column names not specified)" >> "$rollback_file"
 
-            # Try to guess rollback condition from values (e.g. look for 'COL-xxxx')
             rollback_hint=$(echo "$values" | grep -o "'COL-[^']*'" | head -1)
 
             if [[ -n "$rollback_hint" ]]; then
@@ -82,6 +87,8 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             else
                 echo "  -- DELETE FROM $table WHERE [manual condition required];" >> "$rollback_file"
             fi
+            continue
+
         else
             echo "$line" >> "$rollback_file"
         fi
