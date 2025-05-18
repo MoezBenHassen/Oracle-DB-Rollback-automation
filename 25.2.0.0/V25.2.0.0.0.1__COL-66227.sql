@@ -16,7 +16,10 @@ where l.modulename = 'collateral'
 if results > 0 then
      return;
 end if;
-INSERT into preferences VALUES (LASTID , 7, '(global)', 'Include_Interest_On_Coupon_Reinvestment_To_The_MtM_Calc', 'false', null);
+
+
+insert into moezTest values (2, 'Smith', 'Jane', '456 Oak St', 'Springfield');
+
 
 insert into lrsschemaproperties(modulename, propertyname) values('collateral','COL-66227_Include_Interest_On_Coupon_Reinvestment_To_The_MtM_Calc');
 
