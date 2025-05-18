@@ -1,7 +1,8 @@
 -- 🔁 Rollback of V25.2.0.0.0.4__COL-61834.sql
-ALTER TABLE FEED_STAGING_GOOD_AGREEMENT DROP COLUMN independentAmount;
-ALTER TABLE FEED_STAGING_GOOD_AGREEMENT DROP COLUMN upfrontCalculMethodology;
-ALTER TABLE FEED_STAGING_GOOD_AGREEMENT DROP COLUMN principleUpfronts;
-ALTER TABLE FEED_STAGING_GOOD_AGREEMENT DROP COLUMN fixedValue;
-ALTER TABLE FEED_STAGING_GOOD_AGREEMENT DROP COLUMN fixedPerc;
+ALTER TABLE feed_staging_good_agreement DROP COLUMN agreementia;
+ALTER TABLE feed_staging_good_agreement DROP COLUMN independentamount;
+ALTER TABLE feed_staging_good_agreement DROP COLUMN upfrontcalculmethodology;
+ALTER TABLE feed_staging_good_agreement DROP COLUMN principleupfronts;
+ALTER TABLE feed_staging_good_agreement DROP COLUMN fixedvalue;
+ALTER TABLE feed_staging_good_agreement DROP COLUMN fixedperc;
 DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-61834_Agreement_Feed_IA' ;

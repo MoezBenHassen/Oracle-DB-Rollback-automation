@@ -1,1 +1,2 @@
 -- 🔁 Rollback of V25.2.0.0.0.1__COL-66227.sql
+-- INSERT INTO preferences without column names. Manual rollback required.

@@ -12,13 +12,13 @@ for sql_file in "$INPUT_DIR"/*.sql; do
     echo "Generating rollback for $filename"
     echo "-- 🔁 Rollback of $filename" > "$rollback_file"
 
-    declare -A var_map  # Clear var map for each file
+    declare -A var_map  # Reset var map for each file
 
     while IFS= read -r line; do
         trimmed_line="$(echo "$line" | sed 's/^[[:space:]]*//')"
         normalized_line="$(echo "$trimmed_line" | tr '[:upper:]' '[:lower:]')"
 
-        # Capture variable assignments like: v_module := 'collateral';
+        # 🧠 Detect variable assignment like: v_name := 'value';
         if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[^:]*:=\ *\'([^\']*)\' ]]; then
             var_name="${BASH_REMATCH[1]}"
             var_value="${BASH_REMATCH[2]}"
@@ -26,27 +26,27 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             continue
         fi
 
-        # EXECUTE IMMEDIATE 'ALTER TABLE ... ADD ...'
-        if [[ "$trimmed_line" =~ [Ee][Xx][Ee][Cc][Uu][Tt][Ee][[:space:]]+[Ii][Mm][Mm][Ee][Dd][Ii][Aa][Tt][Ee][[:space:]]*\'[[:space:]]*[Aa][Ll][Tt][Ee][Rr][[:space:]]+TABLE[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+ADD[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+        # 🔁 EXECUTE IMMEDIATE 'alter table ... add ...'
+        if [[ "$normalized_line" =~ execute[[:space:]]+immediate[[:space:]]*\'[[:space:]]*alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+add[[:space:]]+([a-z0-9_]+) ]]; then
             table="${BASH_REMATCH[1]}"
             column="${BASH_REMATCH[2]}"
             echo "ALTER TABLE $table DROP COLUMN $column;" >> "$rollback_file"
             continue
         fi
 
-        # Direct ALTER TABLE ADD
-        if [[ "$trimmed_line" =~ ALTER[[:space:]]+TABLE[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+ADD[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+        # 🔁 Direct ALTER TABLE ADD ...
+        if [[ "$normalized_line" =~ alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+add[[:space:]]+([a-z0-9_]+) ]]; then
             table="${BASH_REMATCH[1]}"
             column="${BASH_REMATCH[2]}"
             echo "ALTER TABLE $table DROP COLUMN $column;" >> "$rollback_file"
             continue
         fi
 
-        # INSERT INTO (columns) VALUES (...) — now with variable resolution
-        if [[ "$trimmed_line" =~ INSERT[[:space:]]+INTO[[:space:]]+([a-zA-Z0-9_]+).*VALUES.* ]]; then
+        # 🔁 INSERT INTO (...) VALUES (...) with variable substitution
+        if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+([a-z0-9_]+).*values.* ]]; then
             table="${BASH_REMATCH[1]}"
 
-            # Extract columns and values using sed
+            # Use original case for column and value parsing
             columns=$(echo "$trimmed_line" | sed -nE "s/.*INTO[[:space:]]+$table[[:space:]]*\(([^)]+)\)[[:space:]]*VALUES.*/\1/p")
             values=$(echo "$trimmed_line" | sed -nE "s/.*VALUES[[:space:]]*\(([^)]+)\).*/\1/p")
 
@@ -60,7 +60,7 @@ for sql_file in "$INPUT_DIR"/*.sql; do
                         col_name="$(echo "${col_array[$i]}" | xargs)"
                         raw_val="$(echo "${val_array[$i]}" | xargs)"
 
-                        # Resolve variable if needed
+                        # Lookup variable substitution
                         if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
                             val="'${var_map[$raw_val]}'"
                         else
@@ -78,14 +78,14 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             fi
         fi
 
-        # INSERT INTO table VALUES (...) — unsupported
-        if [[ "$trimmed_line" =~ [Ii][Nn][Ss][Ee][Rr][Tt][[:space:]]+INTO[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+VALUES[[:space:]]*\(.*\) ]]; then
+        # ⚠️ INSERT INTO VALUES (...) — not handled due to missing column names
+        if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+([a-z0-9_]+)[[:space:]]+values[[:space:]]*\(.*\) ]]; then
             table="${BASH_REMATCH[1]}"
             echo "-- INSERT INTO $table without column names. Manual rollback required." >> "$rollback_file"
             continue
         fi
 
-        # Skip all other lines
+        # ❌ Ignore all other lines
         continue
     done < "$sql_file"
 done
