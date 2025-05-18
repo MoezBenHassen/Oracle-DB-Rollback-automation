@@ -36,40 +36,46 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             continue
         fi
 
-        # INSERT INTO (...) VALUES (...)
-        if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+([a-z0-9_]+).*values.* ]]; then
-            table="${BASH_REMATCH[1]}"
-            columns=$(echo "$trimmed_line" | sed -nE "s/.*INTO[[:space:]]+$table[[:space:]]*\(([^)]+)\)[[:space:]]*VALUES.*/\1/p")
-            values=$(echo "$trimmed_line" | sed -nE "s/.*VALUES[[:space:]]*\(([^)]+)\).*/\1/p")
+        # INSERT INTO tablename (col1, col2) VALUES (...)
+ # INSERT INTO with explicit columns
+if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+[a-z0-9_]+\.*[a-z0-9_]*[[:space:]]*\(.*\)[[:space:]]*values ]]; then
+    table=$(echo "$normalized_line" | sed -nE "s/insert[[:space:]]+into[[:space:]]+([a-z0-9_]+)[[:space:]]*\(.*\).*/\1/p")
+    columns=$(echo "$trimmed_line" | sed -nE "s/.*into[[:space:]]+$table[[:space:]]*\(([^)]+)\)[[:space:]]*values.*/\1/p")
+    values=$(echo "$trimmed_line" | sed -nE "s/.*values[[:space:]]*\(([^)]+)\).*/\1/p")
 
-            if [[ -n "$columns" && -n "$values" ]]; then
-                IFS=',' read -ra col_array <<< "$columns"
-                IFS=',' read -ra val_array <<< "$values"
+    if [[ -n "$columns" && -n "$values" ]]; then
+        IFS=',' read -ra col_array <<< "$columns"
+        IFS=',' read -ra val_array <<< "$values"
 
-                if [[ ${#col_array[@]} -eq ${#val_array[@]} ]]; then
-                    where_clause=""
-                    for i in "${!col_array[@]}"; do
-                        col="$(echo "${col_array[$i]}" | xargs)"
-                        raw_val="$(echo "${val_array[$i]}" | xargs)"
-                        if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
-                            val="'${var_map[$raw_val]}'"
-                        else
-                            val="$raw_val"
-                        fi
-                        [[ "$val" =~ ^null$|^NULL$ ]] && where_clause+="$col IS NULL AND " || where_clause+="$col = $val AND "
-                    done
-                    where_clause="${where_clause%AND }"
-                    echo "DELETE FROM $table WHERE $where_clause;" >> "$rollback_file"
+        if [[ ${#col_array[@]} -eq ${#val_array[@]} ]]; then
+            where_clause=""
+            for i in "${!col_array[@]}"; do
+                col="$(echo "${col_array[$i]}" | xargs)"
+                raw_val="$(echo "${val_array[$i]}" | xargs)"
+                if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
+                    val="'${var_map[$raw_val]}'"
+                else
+                    val="$raw_val"
                 fi
-                continue
-            fi
+                [[ "$val" =~ ^null$|^NULL$ ]] && where_clause+="$col IS NULL AND " || where_clause+="$col = $val AND "
+            done
+            where_clause="${where_clause%AND }"
+            echo "DELETE FROM $table WHERE $where_clause;" >> "$rollback_file"
         fi
+        continue
+    fi
+fi
 
-        # INSERT INTO table VALUES (...) — PL/SQL-based rollback
-        if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+([a-z0-9_]+)[[:space:]]+values[[:space:]]*\((.*)\) ]]; then
-            table="${BASH_REMATCH[1]}"
-            raw_values="${BASH_REMATCH[2]}"
-            escaped_values=$(echo "$raw_values" | sed "s/'/''/g")
+
+        # INSERT INTO tablename VALUES (...) — fallback to PL/SQL
+ # INSERT INTO tablename VALUES (...) — fallback to PL/SQL
+if [[ "$normalized_line" == insert\ into*values* ]]; then
+    table=$(echo "$normalized_line" | sed -nE "s/insert[[:space:]]+into[[:space:]]+([a-z0-9_]+)[[:space:]]+values.*/\1/p")
+    raw_values=$(echo "$trimmed_line" | sed -nE "s/.*values[[:space:]]*\(([^)]+)\).*/\1/p")
+
+    if [[ -n "$table" && -n "$raw_values" ]]; then
+        escaped_values=$(echo "$raw_values" | sed "s/'/''/g")
+
 cat >> "$rollback_file" <<EOF
 -- Revert: DELETE from $table using PL/SQL metadata lookup
 DECLARE
@@ -96,10 +102,8 @@ BEGIN
         END IF;
 
         IF col.data_type LIKE '%CHAR%' OR col.data_type = 'CLOB' THEN
-            -- For string types: compare with UPPER() to match insensitively
             v_sql := v_sql || 'UPPER(' || col.column_name || ') = UPPER(' || v_val || ')';
         ELSE
-            -- For numeric/date types: compare directly
             v_sql := v_sql || col.column_name || ' = ' || v_val;
         END IF;
 
@@ -111,9 +115,9 @@ BEGIN
 END;
 /
 EOF
-
-            continue
-        fi
+        continue
+    fi
+fi
 
     done < "$sql_file"
 done

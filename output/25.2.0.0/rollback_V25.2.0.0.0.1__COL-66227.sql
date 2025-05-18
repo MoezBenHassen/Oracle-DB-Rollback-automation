@@ -2,7 +2,7 @@
 -- Revert: DELETE from moeztest using PL/SQL metadata lookup
 DECLARE
     v_sql   CLOB := 'DELETE FROM moeztest WHERE ';
-    v_vals  CLOB := '3, ''sss'', ''ccc'', ''456 oak st'', ''tunisia8''';
+    v_vals  CLOB := '3, ''SSS'', ''ccc'', ''456 Oak St'', ''tunisia8''';
     i       PLS_INTEGER := 1;
     v_val   VARCHAR2(4000);
     first   BOOLEAN := TRUE;
@@ -24,10 +24,8 @@ BEGIN
         END IF;
 
         IF col.data_type LIKE '%CHAR%' OR col.data_type = 'CLOB' THEN
-            -- For string types: compare with UPPER() to match insensitively
             v_sql := v_sql || 'UPPER(' || col.column_name || ') = UPPER(' || v_val || ')';
         ELSE
-            -- For numeric/date types: compare directly
             v_sql := v_sql || col.column_name || ' = ' || v_val;
         END IF;
 
@@ -38,3 +36,4 @@ BEGIN
     EXECUTE IMMEDIATE v_sql;
 END;
 /
+DELETE FROM lrsschemaproperties WHERE modulename = collateral AND propertyname = COL-66227_Include_Interest_On_Coupon_Reinvestment_To_The_MtM_Calc ;
