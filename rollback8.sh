@@ -52,11 +52,16 @@ if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+[a-z0-9_]+\.*[a-z0
             for i in "${!col_array[@]}"; do
                 col="$(echo "${col_array[$i]}" | xargs)"
                 raw_val="$(echo "${val_array[$i]}" | xargs)"
-                if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
-                    val="'${var_map[$raw_val]}'"
-                else
-                    val="$raw_val"
-                fi
+            if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
+    val="'${var_map[$raw_val]}'"
+else
+    if [[ "$raw_val" =~ ^\'.*\'$ ]]; then
+        val="$raw_val"  # already quoted
+    else
+        val="'$raw_val'"  # needs quoting
+    fi
+fi
+
                 [[ "$val" =~ ^null$|^NULL$ ]] && where_clause+="$col IS NULL AND " || where_clause+="$col = $val AND "
             done
             where_clause="${where_clause%AND }"
@@ -67,7 +72,7 @@ if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+[a-z0-9_]+\.*[a-z0
 fi
 
 
-        # INSERT INTO tablename VALUES (...) — fallback to PL/SQL
+        
  # INSERT INTO tablename VALUES (...) — fallback to PL/SQL
 if [[ "$normalized_line" == insert\ into*values* ]]; then
     table=$(echo "$normalized_line" | sed -nE "s/insert[[:space:]]+into[[:space:]]+([a-z0-9_]+)[[:space:]]+values.*/\1/p")

@@ -36,4 +36,4 @@ BEGIN
     EXECUTE IMMEDIATE v_sql;
 END;
 /
-DELETE FROM lrsschemaproperties WHERE modulename = collateral AND propertyname = COL-66227_Include_Interest_On_Coupon_Reinvestment_To_The_MtM_Calc ;
+DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-66227_Include_Interest_On_Coupon_Reinvestment_To_The_MtM_Calc' ;
