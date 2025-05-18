@@ -18,8 +18,7 @@ if results > 0 then
 end if;
 
 
-insert into moezTest values (2, 'Smith', 'Jane', '456 Oak St', 'Springfield');
-
+insert into moezTest values (3, 'SSS', 'ccc', '456 Oak St', 'tunisia8');
 
 insert into lrsschemaproperties(modulename, propertyname) values('collateral','COL-66227_Include_Interest_On_Coupon_Reinvestment_To_The_MtM_Calc');
 
