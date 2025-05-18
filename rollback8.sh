@@ -71,6 +71,53 @@ fi
     fi
 fi
 
+# INSERT INTO (...) VALUES (...) with variables that need resolving
+if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+([a-z0-9_]+).*values.* ]]; then
+    table="${BASH_REMATCH[1]}"
+    columns=$(echo "$trimmed_line" | sed -nE "s/.*INTO[[:space:]]+$table[[:space:]]*\(([^)]+)\)[[:space:]]*VALUES.*/\1/p")
+    values=$(echo "$trimmed_line" | sed -nE "s/.*VALUES[[:space:]]*\(([^)]+)\).*/\1/p")
+
+    # Only handle if values contain variable names that exist in var_map
+    if [[ -n "$columns" && -n "$values" ]]; then
+        IFS=',' read -ra col_array <<< "$columns"
+        IFS=',' read -ra val_array <<< "$values"
+
+        needs_resolution=false
+        for val in "${val_array[@]}"; do
+            cleaned_val="$(echo "$val" | xargs)"
+            if [[ "$cleaned_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$cleaned_val]}" ]]; then
+                needs_resolution=true
+                break
+            fi
+        done
+
+        if $needs_resolution; then
+            if [[ ${#col_array[@]} -eq ${#val_array[@]} ]]; then
+                where_clause=""
+                for i in "${!col_array[@]}"; do
+                    col="$(echo "${col_array[$i]}" | xargs)"
+                    raw_val="$(echo "${val_array[$i]}" | xargs)"
+
+                    if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
+                        val="'${var_map[$raw_val]}'"
+                    else
+                        if [[ "$raw_val" =~ ^\'.*\'$ ]]; then
+                            val="$raw_val"
+                        else
+                            val="'$raw_val'"
+                        fi
+                    fi
+
+                    [[ "$val" =~ ^null$|^NULL$ ]] && where_clause+="$col IS NULL AND " || where_clause+="$col = $val AND "
+                done
+                where_clause="${where_clause%AND }"
+                echo "DELETE FROM $table WHERE $where_clause;" >> "$rollback_file"
+                continue
+            fi
+        fi
+    fi
+fi
+
 
         
  # INSERT INTO tablename VALUES (...) — fallback to PL/SQL
