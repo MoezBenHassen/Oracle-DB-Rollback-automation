@@ -12,8 +12,19 @@ for sql_file in "$INPUT_DIR"/*.sql; do
     echo "Generating rollback for $filename"
     echo "-- 🔁 Rollback of $filename" > "$rollback_file"
 
+    declare -A var_map  # Clear var map for each file
+
     while IFS= read -r line; do
         trimmed_line="$(echo "$line" | sed 's/^[[:space:]]*//')"
+        normalized_line="$(echo "$trimmed_line" | tr '[:upper:]' '[:lower:]')"
+
+        # Capture variable assignments like: v_module := 'collateral';
+        if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[^:]*:=\ *\'([^\']*)\' ]]; then
+            var_name="${BASH_REMATCH[1]}"
+            var_value="${BASH_REMATCH[2]}"
+            var_map["$var_name"]="$var_value"
+            continue
+        fi
 
         # EXECUTE IMMEDIATE 'ALTER TABLE ... ADD ...'
         if [[ "$trimmed_line" =~ [Ee][Xx][Ee][Cc][Uu][Tt][Ee][[:space:]]+[Ii][Mm][Mm][Ee][Dd][Ii][Aa][Tt][Ee][[:space:]]*\'[[:space:]]*[Aa][Ll][Tt][Ee][Rr][[:space:]]+TABLE[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+ADD[[:space:]]+([a-zA-Z0-9_]+) ]]; then
@@ -21,16 +32,18 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             column="${BASH_REMATCH[2]}"
             echo "ALTER TABLE $table DROP COLUMN $column;" >> "$rollback_file"
             continue
+        fi
 
         # Direct ALTER TABLE ADD
-        elif [[ "$trimmed_line" =~ ALTER[[:space:]]+TABLE[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+ADD[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+        if [[ "$trimmed_line" =~ ALTER[[:space:]]+TABLE[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+ADD[[:space:]]+([a-zA-Z0-9_]+) ]]; then
             table="${BASH_REMATCH[1]}"
             column="${BASH_REMATCH[2]}"
             echo "ALTER TABLE $table DROP COLUMN $column;" >> "$rollback_file"
             continue
+        fi
 
-        # INSERT INTO (columns) VALUES (...) — simplified detection
-        elif [[ "$trimmed_line" =~ INSERT[[:space:]]+INTO[[:space:]]+([a-zA-Z0-9_]+).*VALUES.* ]]; then
+        # INSERT INTO (columns) VALUES (...) — now with variable resolution
+        if [[ "$trimmed_line" =~ INSERT[[:space:]]+INTO[[:space:]]+([a-zA-Z0-9_]+).*VALUES.* ]]; then
             table="${BASH_REMATCH[1]}"
 
             # Extract columns and values using sed
@@ -45,7 +58,15 @@ for sql_file in "$INPUT_DIR"/*.sql; do
                     where_clause=""
                     for i in "${!col_array[@]}"; do
                         col_name="$(echo "${col_array[$i]}" | xargs)"
-                        val="$(echo "${val_array[$i]}" | xargs)"
+                        raw_val="$(echo "${val_array[$i]}" | xargs)"
+
+                        # Resolve variable if needed
+                        if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
+                            val="'${var_map[$raw_val]}'"
+                        else
+                            val="$raw_val"
+                        fi
+
                         [[ "$val" =~ ^null$|^NULL$ ]] && where_clause+="$col_name IS NULL AND " || where_clause+="$col_name = $val AND "
                     done
                     where_clause="${where_clause%AND }"
@@ -55,13 +76,15 @@ for sql_file in "$INPUT_DIR"/*.sql; do
                 fi
                 continue
             fi
+        fi
 
         # INSERT INTO table VALUES (...) — unsupported
-        elif [[ "$trimmed_line" =~ [Ii][Nn][Ss][Ee][Rr][Tt][[:space:]]+INTO[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+VALUES[[:space:]]*\(.*\) ]]; then
+        if [[ "$trimmed_line" =~ [Ii][Nn][Ss][Ee][Rr][Tt][[:space:]]+INTO[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+VALUES[[:space:]]*\(.*\) ]]; then
             table="${BASH_REMATCH[1]}"
             echo "-- INSERT INTO $table without column names. Manual rollback required." >> "$rollback_file"
             continue
-fi
+        fi
+
         # Skip all other lines
         continue
     done < "$sql_file"
