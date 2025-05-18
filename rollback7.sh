@@ -1,7 +1,7 @@
 #!/bin/bash
 
 INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/25.2.0.0"
-OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output"
+OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0"
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -60,10 +60,14 @@ for sql_file in "$INPUT_DIR"/*.sql; do
 
             if [ "${#col_array[@]}" -eq "${#val_array[@]}" ]; then
                 where_clause=""
-                for i in "${!col_array[@]}"; do
-                    col_name="$(echo "${col_array[$i]}" | sed -E "s/^[[:space:]]+//; s/[[:space:]]+$//")"
-                    val="$(echo "${val_array[$i]}" | sed -E "s/^[[:space:]]+//; s/[[:space:]]+$//")"
-                    where_clause+="$col_name = $val AND "
+                for i in "${!col_array[@]}" ; do
+                    col_name="$(echo "${col_array[$i]}" | sed -E "s/^[[:space:]]+//;s/[[:space:]]+$//")"
+                    val="$(echo "${val_array[$i]}" | sed -E "s/^[[:space:]]+//;s/[[:space:]]+$//")"
+                    if [[ "$val" =~ ^null$|^NULL$ ]]; then
+                        where_clause+="$col_name IS NULL AND "
+                    else
+                        where_clause+="$col_name = $val AND "
+                    fi
                 done
                 where_clause="${where_clause%AND }"
                 echo "  -- Revert: DELETE inserted row" >> "$rollback_file"
@@ -73,22 +77,30 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             fi
             continue
 
-        # INSERT INTO table VALUES (...)
-        elif [[ "$trimmed_line" =~ [Ii][Nn][Ss][Ee][Rr][Tt][[:space:]]+[Ii][Nn][Tt][Oo][[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+[Vv][Aa][Ll][Uu][Ee][Ss][[:space:]]*\((.*)\) ]]; then
+# INSERT INTO table VALUES (...) ← handled dynamically at runtime via metadata
+elif [[ "$trimmed_line" =~ [Ii][Nn][Ss][Ee][Rr][Tt][[:space:]]+[Ii][Nn][Tt][Oo][[:space:]]+([a-zA-Z0-9_]+)[[:space:]]+[Vv][Aa][Ll][Uu][Ee][Ss][[:space:]]*\((.*)\) ]]; then
+    table="${BASH_REMATCH[1]}"
+    values="${BASH_REMATCH[2]}"
 
-            table="${BASH_REMATCH[1]}"
-            values="${BASH_REMATCH[2]}"
+    echo "  -- Revert: DELETE inserted row (dynamic column resolution at runtime)" >> "$rollback_file"
+    echo "DECLARE" >> "$rollback_file"
+    echo "  v_sql VARCHAR2(4000);" >> "$rollback_file"
+    echo "BEGIN" >> "$rollback_file"
+    echo "  SELECT 'DELETE FROM $table WHERE ' ||" >> "$rollback_file"
+    echo "         LISTAGG(column_name || ' = ' || '/* map value here */', ' AND ')" >> "$rollback_file"
+    echo "         WITHIN GROUP (ORDER BY column_id)" >> "$rollback_file"
+    echo "  INTO v_sql" >> "$rollback_file"
+    echo "  FROM all_tab_columns" >> "$rollback_file"
+    echo "  WHERE table_name = UPPER('$table')" >> "$rollback_file"
+    echo "    AND owner = USER;" >> "$rollback_file"
+    echo "" >> "$rollback_file"
+    echo "  -- Print or execute" >> "$rollback_file"
+    echo "  DBMS_OUTPUT.PUT_LINE(v_sql);" >> "$rollback_file"
+    echo "  -- EXECUTE IMMEDIATE v_sql;" >> "$rollback_file"
+    echo "END;" >> "$rollback_file"
+    echo "/" >> "$rollback_file"
+    continue
 
-            echo "  -- Revert: DELETE inserted row (column names not specified)" >> "$rollback_file"
-
-            rollback_hint=$(echo "$values" | grep -o "'COL-[^']*'" | head -1)
-
-            if [[ -n "$rollback_hint" ]]; then
-                echo "  -- Suggested rollback (review manually): DELETE FROM $table WHERE propertyname = $rollback_hint;" >> "$rollback_file"
-            else
-                echo "  -- DELETE FROM $table WHERE [manual condition required];" >> "$rollback_file"
-            fi
-            continue
 
         else
             echo "$line" >> "$rollback_file"
