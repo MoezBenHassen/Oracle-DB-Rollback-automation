@@ -1,0 +1,70 @@
+-- 🔁 Rollback of V15.14.0.0.0.11__COL-52636.sql
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: EXECUTE IMMEDIATE v_select_sequence_sql INTO s_count;
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: EXECUTE IMMEDIATE v_select_next_val_sql INTO v_next_val;
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: EXECUTE IMMEDIATE v_select_max_id_sql INTO v_max_id;
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status) VALUES (v_next_val,'STATUS_AMP', 'Rejected', 'Rejected', 11);
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status) VALUES (v_next_val,'STATUS_AMP', 'Substitution Accepted', 'Substitution Accepted', 11);
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status) VALUES (v_next_val,'STATUS_AMP', 'Substitution Cancelled', 'Substitution Cancelled', 11);
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status) VALUES (v_next_val,'STATUS_AMP', 'Proposed', 'Proposed', 11);
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status, flag, category, substitutionCanceled)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status, flag, category, substitutionCanceled)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status, flag, category, substitutionCanceled)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: insert into RefData(id, scheme, refDataValue, description, status, flag, category, substitutionCanceled)
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Reject Initiated';
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Accept Initiated';
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Initiated';
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Sent';
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Accept';
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Cancel';
+DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-52636_Update_Substitution_AMP_Statuses' ;

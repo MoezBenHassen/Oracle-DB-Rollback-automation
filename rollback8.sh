@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/25.2.0.0"
-# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0"
+INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/25.2.0.0"
+OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0"
 
 
-INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/15.14.0.0"
-OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/15.14.0.0"
+# INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/15.14.0.0"
+# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/15.14.0.0"
 
 
 mkdir -p "$OUTPUT_DIR"
@@ -218,6 +218,42 @@ fi
 
 # Fallback for unhandled SQL that looks like DDL/DML and is not caught above
 if [[ "$normalized_line" =~ ^(create|drop|alter|update|merge|truncate|rename|execute[[:space:]]+immediate) ]]; then
+    echo "-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED" >> "$rollback_file"
+    echo "-- ORIGINAL: $trimmed_line" >> "$rollback_file"
+    continue
+fi
+
+if [[ "$normalized_line" =~ ^alter[[:space:]] ]]; then
+    echo "-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED" >> "$rollback_file"
+    echo "-- ORIGINAL: $trimmed_line" >> "$rollback_file"
+    continue
+fi
+
+if [[ "$normalized_line" =~ ^execute[[:space:]]+immediate ]]; then
+    echo "-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED" >> "$rollback_file"
+    echo "-- ORIGINAL: $trimmed_line" >> "$rollback_file"
+    continue
+fi
+
+if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:=[[:space:]]*\'(.*)\' ]]; then
+    varname="${BASH_REMATCH[1]}"
+    var_sql="${BASH_REMATCH[2]}"
+    dynamic_sql_vars["$varname"]="$var_sql"
+    continue
+fi
+if [[ "$normalized_line" =~ ^execute[[:space:]]+immediate[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*) ]]; then
+    exec_var="${BASH_REMATCH[1]}"
+    if [[ -n "${dynamic_sql_vars[$exec_var]}" ]]; then
+        sql_to_reverse="${dynamic_sql_vars[$exec_var]}"
+        # attempt rollback here if desired
+    else
+        echo "-- ⚠️ MANUAL CHECK REQUIRED: EXECUTE IMMEDIATE using unknown variable" >> "$rollback_file"
+        echo "-- ORIGINAL: $trimmed_line" >> "$rollback_file"
+    fi
+    continue
+fi
+
+if [[ "$normalized_line" =~ ^(insert|delete|update|merge|create|drop|alter|truncate|rename)[[:space:]]+ ]]; then
     echo "-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED" >> "$rollback_file"
     echo "-- ORIGINAL: $trimmed_line" >> "$rollback_file"
     continue
