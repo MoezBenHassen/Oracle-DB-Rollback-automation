@@ -17,6 +17,7 @@ END IF;
 
 EXECUTE IMMEDIATE 'alter table FEED_STAGING_GOOD_STATICDATA add category VARCHAR2(50)';
 
+EXECUTE IMMEDIATE 'UPDATE ColRptInAssetSettlement SET excludeFlushed=''No''';
 
 INSERT INTO lrsschemaproperties (modulename, propertyname) VALUES (v_module, v_property);
 COMMIT;

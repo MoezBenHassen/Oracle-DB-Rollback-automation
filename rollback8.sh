@@ -36,6 +36,14 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             continue
         fi
 
+# Catch any UPDATE statement (direct or EXECUTE IMMEDIATE) and output as manual-check comment
+if [[ "$normalized_line" =~ update[[:space:]]+[a-z0-9_]+[[:space:]]+set[[:space:]]+ ]]; then
+    echo "-- ⚠️ MANUAL CHECK REQUIRED: the following UPDATE needs to be manually rolledback" >> "$rollback_file"
+    echo "-- ORIGINAL: $trimmed_line" >> "$rollback_file"
+    continue
+fi
+
+
         # INSERT INTO tablename (col1, col2) VALUES (...)
  # INSERT INTO with explicit columns
 if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+[a-z0-9_]+\.*[a-z0-9_]*[[:space:]]*\(.*\)[[:space:]]*values ]]; then
