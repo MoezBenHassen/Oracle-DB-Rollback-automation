@@ -168,6 +168,7 @@ fi
         
  # INSERT INTO tablename VALUES (...) — fallback to PL/SQL
 # INSERT INTO tablename VALUES (...) — fallback to PL/SQL (supports variables like LASTID)
+# INSERT INTO tablename VALUES (...) — fallback to PL/SQL
 regex_values_fallback='^insert[[:space:]]+into[[:space:]]+([a-z0-9_]+)[[:space:]]+values[[:space:]]*\(([^)]*)\)'
 if [[ "$normalized_line" =~ $regex_values_fallback ]]; then
     table="${BASH_REMATCH[1]}"
@@ -178,13 +179,12 @@ if [[ "$normalized_line" =~ $regex_values_fallback ]]; then
         escaped_values=()
 
         for val in "${val_array[@]}"; do
-           trimmed_val=$(echo "$val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
+            trimmed_val=$(echo "$val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
             # Keep NULL as is
             if [[ "$trimmed_val" =~ ^null$|^NULL$ ]]; then
                 escaped_values+=("NULL")
-            # Preserve variables (e.g., LASTID)
+            # Preserve variables (e.g., dynamic bindings)
             elif [[ "$trimmed_val" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
                 escaped_values+=("$trimmed_val")
             # Quote string literals safely
@@ -196,9 +196,8 @@ if [[ "$normalized_line" =~ $regex_values_fallback ]]; then
             fi
         done
 
-        # Join values with proper escaping and Oracle-safe Q-quote syntax
-joined_values=$(IFS=','; printf "%s" "${escaped_values[*]}")
-escaped_for_plsql=$(echo "$joined_values" | sed "s/'/''/g")
+        joined_values=$(IFS=','; printf "%s" "${escaped_values[*]}")
+        escaped_for_plsql=$(echo "$joined_values" | sed "s/'/''/g")
 
 cat >> "$rollback_file" <<EOF
 -- Revert: DELETE from $table using PL/SQL metadata lookup
@@ -209,38 +208,36 @@ DECLARE
     v_val   VARCHAR2(4000);
     first   BOOLEAN := TRUE;
 BEGIN
-   -- CHANGE: Skip variables like LASTID when building WHERE clause since values may not be reliable
-FOR col IN (
-    SELECT column_name, data_type
-    FROM all_tab_columns
-    WHERE table_name = UPPER('$table')
-      AND owner = USER
-    ORDER BY column_id
-) LOOP
-    v_val := TRIM(REGEXP_SUBSTR(v_vals, '[^,]+', 1, i));
-    EXIT WHEN v_val IS NULL;
+    FOR col IN (
+        SELECT column_name, data_type
+        FROM all_tab_columns
+        WHERE table_name = UPPER('$table')
+          AND owner = USER
+        ORDER BY column_id
+    ) LOOP
+        v_val := TRIM(REGEXP_SUBSTR(v_vals, '[^,]+', 1, i));
+        EXIT WHEN v_val IS NULL;
 
-    -- Skip variable placeholders like LASTID (assumed to be upper-case alphanumeric without quotes)
-    IF REGEXP_LIKE(v_val, '^[A-Z_][A-Z0-9_]*$') THEN
+        -- Skip unquoted variable placeholders (likely runtime values)
+        IF REGEXP_LIKE(v_val, '^[A-Z_][A-Z0-9_]*$') THEN
+            i := i + 1;
+            CONTINUE;
+        END IF;
+
+        IF NOT first THEN
+            v_sql := v_sql || ' AND ';
+        ELSE
+            first := FALSE;
+        END IF;
+
+        IF col.data_type LIKE '%CHAR%' OR col.data_type = 'CLOB' THEN
+            v_sql := v_sql || 'UPPER(' || col.column_name || ') = UPPER(' || v_val || ')';
+        ELSE
+            v_sql := v_sql || col.column_name || ' = ' || v_val;
+        END IF;
+
         i := i + 1;
-        CONTINUE;
-    END IF;
-
-    IF NOT first THEN
-        v_sql := v_sql || ' AND ';
-    ELSE
-        first := FALSE;
-    END IF;
-
-    IF col.data_type LIKE '%CHAR%' OR col.data_type = 'CLOB' THEN
-        v_sql := v_sql || 'UPPER(' || col.column_name || ') = UPPER(' || v_val || ')';
-    ELSE
-        v_sql := v_sql || col.column_name || ' = ' || v_val;
-    END IF;
-
-    i := i + 1;
-END LOOP;
-
+    END LOOP;
 
     DBMS_OUTPUT.PUT_LINE(v_sql);
     EXECUTE IMMEDIATE v_sql;
