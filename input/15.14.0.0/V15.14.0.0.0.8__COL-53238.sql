@@ -1,0 +1,24 @@
+DECLARE
+results    NUMBER;
+  v_module   VARCHAR2(100) := 'collateral';
+  v_property VARCHAR2(100) := 'COL-53238_settlement_date_and_split_settlement_date';
+BEGIN
+
+SELECT count(1)
+INTO results
+FROM lrsschemaproperties l
+WHERE l.modulename = v_module
+  AND l.propertyname = v_property;
+
+IF results > 0
+  THEN
+    RETURN;
+END IF;
+
+EXECUTE IMMEDIATE 'ALTER TABLE FEED_STAGING_GOOD_AGREEMENT DROP COLUMN SPLITSETTLEMENTPERIOD';
+EXECUTE IMMEDIATE 'ALTER TABLE FEED_STAGING_GOOD_AGREEMENT ADD SPLITSETTLEMENTPERIOD VARCHAR2(250)';
+EXECUTE IMMEDIATE 'ALTER TABLE FEED_STAGING_GOOD_AGREEMENT ADD SETTLEMENTDATEABBRIVIATEDDELIVERIES VARCHAR2(250)';
+
+INSERT INTO lrsschemaproperties (modulename, propertyname) VALUES (v_module, v_property);
+COMMIT;
+END;

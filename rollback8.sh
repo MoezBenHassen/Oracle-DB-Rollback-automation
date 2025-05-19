@@ -1,7 +1,12 @@
 #!/bin/bash
 
-INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/25.2.0.0"
-OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0"
+# INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/25.2.0.0"
+# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0"
+
+
+INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/15.14.0.0"
+OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/15.14.0.0"
+
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -40,6 +45,38 @@ for sql_file in "$INPUT_DIR"/*.sql; do
 if [[ "$normalized_line" =~ update[[:space:]]+[a-z0-9_]+[[:space:]]+set[[:space:]]+ ]]; then
     echo "-- ⚠️ MANUAL CHECK REQUIRED: the following UPDATE needs to be manually rolledback" >> "$rollback_file"
     echo "-- ORIGINAL: $trimmed_line" >> "$rollback_file"
+    continue
+fi
+
+# Track dynamic SQL assigned to v_sql
+if [[ "$trimmed_line" =~ ^v_sql[[:space:]]*:=[[:space:]]*\'(.*)\' ]]; then
+    last_v_sql="${BASH_REMATCH[1]}"
+    last_v_sql="${last_v_sql%;}"  # trim trailing semicolon if any
+    continue
+fi
+
+
+# When EXECUTE IMMEDIATE v_sql is found, try to reverse the last_v_sql
+if [[ "$normalized_line" =~ ^execute[[:space:]]+immediate[[:space:]]+v_sql ]]; then
+    lowercase_sql="$(echo "$last_v_sql" | tr '[:upper:]' '[:lower:]')"
+
+    if [[ "$lowercase_sql" =~ ^alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+add[[:space:]]+([a-z0-9_]+)[[:space:]]+.*$ ]]; then
+        table="${BASH_REMATCH[1]}"
+        column="${BASH_REMATCH[2]}"
+        echo "ALTER TABLE $table DROP COLUMN $column;" >> "$rollback_file"
+    elif [[ "$lowercase_sql" =~ ^update[[:space:]]+([a-z0-9_]+)[[:space:]]+set[[:space:]]+.*$ ]]; then
+        echo "-- ⚠️ Revert: Cannot determine previous values for UPDATE: $last_v_sql" >> "$rollback_file"
+    elif [[ "$lowercase_sql" =~ ^create[[:space:]]+index[[:space:]]+([a-z0-9_]+)[[:space:]]+on[[:space:]]+([a-z0-9_]+).* ]]; then
+        index="${BASH_REMATCH[1]}"
+        echo "DROP INDEX $index;" >> "$rollback_file"
+    elif [[ "$lowercase_sql" =~ ^alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+modify[[:space:]]*\(.*not[[:space:]]+null.*\) ]]; then
+        table="${BASH_REMATCH[1]}"
+        echo "-- ⚠️ Revert: Consider allowing NULLs again on $table; manual adjustment may be needed" >> "$rollback_file"
+    elif [[ -n "$last_v_sql" ]]; then
+        echo "-- ⚠️ Unrecognized EXECUTE IMMEDIATE rollback: $last_v_sql" >> "$rollback_file"
+    fi
+
+    last_v_sql=""
     continue
 fi
 
