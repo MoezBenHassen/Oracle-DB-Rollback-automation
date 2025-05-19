@@ -4,7 +4,7 @@
 # OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0"
 
 
-INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/15.14.0.0"
+INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/15.14.0.0"
 OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/15.14.0.0"
 
 
@@ -83,12 +83,16 @@ fi
 
         # INSERT INTO tablename (col1, col2) VALUES (...)
  # INSERT INTO with explicit columns
-if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+[a-z0-9_]+\.*[a-z0-9_]*[[:space:]]*\(.*\)[[:space:]]*values ]]; then
-    table=$(echo "$normalized_line" | sed -nE "s/insert[[:space:]]+into[[:space:]]+([a-z0-9_]+)[[:space:]]*\(.*\).*/\1/p")
-    columns=$(echo "$trimmed_line" | sed -nE "s/.*into[[:space:]]+$table[[:space:]]*\(([^)]+)\)[[:space:]]*values.*/\1/p")
-    values=$(echo "$trimmed_line" | sed -nE "s/.*values[[:space:]]*\(([^)]+)\).*/\1/p")
+# INSERT INTO table(col1, col2) VALUES(...)
+regex_insert="insert[[:space:]]+into[[:space:]]+([a-z0-9_.]+)[[:space:]]*\\(([^)]+)\\)[[:space:]]*values"
+if [[ "$normalized_line" =~ $regex_insert ]]; then
+    table="${BASH_REMATCH[1]}"
+    columns="${BASH_REMATCH[2]}"
+    values=$(echo "$trimmed_line" | sed -nE "s/.*values[[:space:]]*\\(([^)]+)\\).*/\1/p")
 
     if [[ -n "$columns" && -n "$values" ]]; then
+        # proceed with building rollback...
+
         IFS=',' read -ra col_array <<< "$columns"
         IFS=',' read -ra val_array <<< "$values"
 
@@ -97,16 +101,11 @@ if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+[a-z0-9_]+\.*[a-z0
             for i in "${!col_array[@]}"; do
                 col="$(echo "${col_array[$i]}" | xargs)"
                 raw_val="$(echo "${val_array[$i]}" | xargs)"
-            if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
-    val="'${var_map[$raw_val]}'"
-else
-    if [[ "$raw_val" =~ ^\'.*\'$ ]]; then
-        val="$raw_val"  # already quoted
-    else
-        val="'$raw_val'"  # needs quoting
-    fi
-fi
-
+                if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
+                    val="'${var_map[$raw_val]}'"
+                else
+                    [[ "$raw_val" =~ ^\'.*\'$ ]] && val="$raw_val" || val="'$raw_val'"
+                fi
                 [[ "$val" =~ ^null$|^NULL$ ]] && where_clause+="$col IS NULL AND " || where_clause+="$col = $val AND "
             done
             where_clause="${where_clause%AND }"
@@ -115,6 +114,7 @@ fi
         continue
     fi
 fi
+
 
 # INSERT INTO (...) VALUES (...) with variables that need resolving
 if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+([a-z0-9_]+).*values.* ]]; then
@@ -214,6 +214,13 @@ END;
 EOF
         continue
     fi
+fi
+
+# Fallback for unhandled SQL that looks like DDL/DML and is not caught above
+if [[ "$normalized_line" =~ ^(create|drop|alter|update|merge|truncate|rename|execute[[:space:]]+immediate) ]]; then
+    echo "-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED" >> "$rollback_file"
+    echo "-- ORIGINAL: $trimmed_line" >> "$rollback_file"
+    continue
 fi
 
     done < "$sql_file"
