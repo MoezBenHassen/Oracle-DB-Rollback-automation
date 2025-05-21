@@ -3,11 +3,11 @@
 # INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test"
 # OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test"
 
-# INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/25.2.0.0"
-# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0/test"
+INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/25.2.0.0"
+OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0/test"
 
-INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test"
-OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test"
+# INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test"
+# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test"
 
 mkdir -p "$OUTPUT_DIR"
 
