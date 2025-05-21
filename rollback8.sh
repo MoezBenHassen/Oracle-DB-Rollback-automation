@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/25.2.0.0"
-# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0"
+INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test"
+OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test"
 
 
-INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/15.14.0.0"
-OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/15.14.0.0"
+# INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/15.14.0.0"
+# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/15.14.0.0"
 
 
 mkdir -p "$OUTPUT_DIR"
@@ -158,52 +158,26 @@ if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+([a-z0-9_]+).*valu
                 where_clause="${where_clause%AND }"
                 echo "DELETE FROM $table WHERE $where_clause;" >> "$rollback_file"
                 continue
-                fi
             fi
+        fi
     fi
 fi
 
 
-
         
  # INSERT INTO tablename VALUES (...) — fallback to PL/SQL
-# INSERT INTO tablename VALUES (...) — fallback to PL/SQL (supports variables like LASTID)
-# INSERT INTO tablename VALUES (...) — fallback to PL/SQL
-regex_values_fallback='^insert[[:space:]]+into[[:space:]]+([a-z0-9_]+)[[:space:]]+values[[:space:]]*\(([^)]*)\)'
-if [[ "$normalized_line" =~ $regex_values_fallback ]]; then
-    table="${BASH_REMATCH[1]}"
-    raw_values="${BASH_REMATCH[2]}"
+if [[ "$normalized_line" == insert\ into*values* ]]; then
+    table=$(echo "$normalized_line" | sed -nE "s/insert[[:space:]]+into[[:space:]]+([a-z0-9_]+)[[:space:]]+values.*/\1/p")
+    raw_values=$(echo "$trimmed_line" | sed -nE "s/.*values[[:space:]]*\(([^)]+)\).*/\1/p")
 
     if [[ -n "$table" && -n "$raw_values" ]]; then
-        IFS=',' read -ra val_array <<< "$raw_values"
-        escaped_values=()
-
-        for val in "${val_array[@]}"; do
-            trimmed_val=$(echo "$val" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-            # Keep NULL as is
-            if [[ "$trimmed_val" =~ ^null$|^NULL$ ]]; then
-                escaped_values+=("NULL")
-            # Preserve variables (e.g., dynamic bindings)
-            elif [[ "$trimmed_val" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-                escaped_values+=("$trimmed_val")
-            # Quote string literals safely
-            elif [[ "$trimmed_val" =~ ^\'.*\'$ ]]; then
-                escaped_values+=("$trimmed_val")
-            else
-                # Numeric or unquoted literal — quote it
-                escaped_values+=("'$trimmed_val'")
-            fi
-        done
-
-        joined_values=$(IFS=','; printf "%s" "${escaped_values[*]}")
-        escaped_for_plsql=$(echo "$joined_values" | sed "s/'/''/g")
+        escaped_values=$(echo "$raw_values" | sed "s/'/''/g")
 
 cat >> "$rollback_file" <<EOF
 -- Revert: DELETE from $table using PL/SQL metadata lookup
 DECLARE
     v_sql   CLOB := 'DELETE FROM $table WHERE ';
-    v_vals  CLOB := '$joined_values';
+    v_vals  CLOB := '$escaped_values';
     i       PLS_INTEGER := 1;
     v_val   VARCHAR2(4000);
     first   BOOLEAN := TRUE;
@@ -217,12 +191,6 @@ BEGIN
     ) LOOP
         v_val := TRIM(REGEXP_SUBSTR(v_vals, '[^,]+', 1, i));
         EXIT WHEN v_val IS NULL;
-
-        -- Skip unquoted variable placeholders (likely runtime values)
-        IF REGEXP_LIKE(v_val, '^[A-Z_][A-Z0-9_]*$') THEN
-            i := i + 1;
-            CONTINUE;
-        END IF;
 
         IF NOT first THEN
             v_sql := v_sql || ' AND ';
@@ -247,7 +215,6 @@ EOF
         continue
     fi
 fi
-
 
 # Fallback for unhandled SQL that looks like DDL/DML and is not caught above
 if [[ "$normalized_line" =~ ^(create|drop|alter|update|merge|truncate|rename|execute[[:space:]]+immediate) ]]; then
