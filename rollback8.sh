@@ -3,6 +3,8 @@
 INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test"
 OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test"
 
+# INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/25.2.0.0"
+# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0"
 
 # INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/15.14.0.0"
 # OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/15.14.0.0"
@@ -18,16 +20,41 @@ for sql_file in "$INPUT_DIR"/*.sql; do
     echo "-- 🔁 Rollback of $filename" > "$rollback_file"
 
     declare -A var_map
+    declare -A dynamic_sql_vars
 
     while IFS= read -r line; do
         trimmed_line="$(echo "$line" | sed 's/^[[:space:]]*//')"
         normalized_line="$(echo "$trimmed_line" | tr '[:upper:]' '[:lower:]')"
 
         # Variable assignment
-        if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[^:]*:=\ *\'([^\']*)\' ]]; then
-            var_map["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
-            continue
-        fi
+        # if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[^:]*:=\ *\'([^\']*)\' ]]; then
+        #     var_map["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+        #     continue
+        # fi
+    # Pattern for := assignment (PL/SQL-style)
+if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:=?[[:space:]]*\'([^\']*)\'[[:space:]]*\;?[[:space:]]*$ ]]; then
+    varname="${BASH_REMATCH[1]}"
+    varvalue="${BASH_REMATCH[2]}"
+    var_map["$varname"]="$varvalue"
+    dynamic_sql_vars["$varname"]="$varvalue"
+    if [[ "$varname" == "v_sql" ]]; then
+        last_v_sql="$varvalue"
+    fi
+    continue
+fi
+
+# Pattern for = assignment (SQL-style)
+if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*\'([^\']*)\'[[:space:]]*\;?[[:space:]]*$ ]]; then
+    varname="${BASH_REMATCH[1]}"
+    varvalue="${BASH_REMATCH[2]}"
+    var_map["$varname"]="$varvalue"
+    dynamic_sql_vars["$varname"]="$varvalue"
+    if [[ "$varname" == "v_sql" ]]; then
+        last_v_sql="$varvalue"
+    fi
+    continue
+fi
+
 
         # ALTER TABLE via EXECUTE IMMEDIATE
         if [[ "$normalized_line" =~ execute[[:space:]]+immediate.*alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+add[[:space:]]+([a-z0-9_]+) ]]; then
@@ -48,35 +75,86 @@ if [[ "$normalized_line" =~ update[[:space:]]+[a-z0-9_]+[[:space:]]+set[[:space:
     continue
 fi
 
-# Track dynamic SQL assigned to v_sql
-if [[ "$trimmed_line" =~ ^v_sql[[:space:]]*:=[[:space:]]*\'(.*)\' ]]; then
-    last_v_sql="${BASH_REMATCH[1]}"
-    last_v_sql="${last_v_sql%;}"  # trim trailing semicolon if any
+# # Track dynamic SQL assigned to v_sql
+# if [[ "$trimmed_line" =~ ^v_sql[[:space:]]*:=[[:space:]]*\'(.*)\' ]]; then
+#     last_v_sql="${BASH_REMATCH[1]}"
+#     last_v_sql="${last_v_sql%;}"  # trim trailing semicolon if any
+#     continue
+# fi
+# Track dynamic SQL assigned to any variable (including v_sql)
+if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:=[[:space:]]*\'(.*)\' ]]; then
+    varname="${BASH_REMATCH[1]}"
+    var_sql="${BASH_REMATCH[2]}"
+    var_sql="${var_sql%;}"  # remove trailing semicolon
+    dynamic_sql_vars["$varname"]="$var_sql"
+
+    # Also store v_sql into last_v_sql for compatibility with older logic
+    if [[ "$varname" == "v_sql" ]]; then
+        last_v_sql="$var_sql"
+    fi
     continue
 fi
 
+# if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:=[[:space:]]*\'(.*)\' ]]; then
+#     varname="${BASH_REMATCH[1]}"
+#     var_sql="${BASH_REMATCH[2]}"
+#     var_sql="${var_sql%;}"  # remove trailing semicolon
+#     dynamic_sql_vars["$varname"]="$var_sql"
+#     continue
+# fi
+
 
 # When EXECUTE IMMEDIATE v_sql is found, try to reverse the last_v_sql
-if [[ "$normalized_line" =~ ^execute[[:space:]]+immediate[[:space:]]+v_sql ]]; then
-    lowercase_sql="$(echo "$last_v_sql" | tr '[:upper:]' '[:lower:]')"
+# if [[ "$normalized_line" =~ ^execute[[:space:]]+immediate[[:space:]]+v_sql ]]; then
+#     lowercase_sql="$(echo "$last_v_sql" | tr '[:upper:]' '[:lower:]')"
 
-    if [[ "$lowercase_sql" =~ ^alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+add[[:space:]]+([a-z0-9_]+)[[:space:]]+.*$ ]]; then
-        table="${BASH_REMATCH[1]}"
-        column="${BASH_REMATCH[2]}"
-        echo "ALTER TABLE $table DROP COLUMN $column;" >> "$rollback_file"
-    elif [[ "$lowercase_sql" =~ ^update[[:space:]]+([a-z0-9_]+)[[:space:]]+set[[:space:]]+.*$ ]]; then
-        echo "-- ⚠️ Revert: Cannot determine previous values for UPDATE: $last_v_sql" >> "$rollback_file"
-    elif [[ "$lowercase_sql" =~ ^create[[:space:]]+index[[:space:]]+([a-z0-9_]+)[[:space:]]+on[[:space:]]+([a-z0-9_]+).* ]]; then
-        index="${BASH_REMATCH[1]}"
-        echo "DROP INDEX $index;" >> "$rollback_file"
-    elif [[ "$lowercase_sql" =~ ^alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+modify[[:space:]]*\(.*not[[:space:]]+null.*\) ]]; then
-        table="${BASH_REMATCH[1]}"
-        echo "-- ⚠️ Revert: Consider allowing NULLs again on $table; manual adjustment may be needed" >> "$rollback_file"
-    elif [[ -n "$last_v_sql" ]]; then
-        echo "-- ⚠️ Unrecognized EXECUTE IMMEDIATE rollback: $last_v_sql" >> "$rollback_file"
+#     if [[ "$lowercase_sql" =~ ^alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+add[[:space:]]+([a-z0-9_]+)[[:space:]]+.*$ ]]; then
+#         table="${BASH_REMATCH[1]}"
+#         column="${BASH_REMATCH[2]}"
+#         echo "ALTER TABLE $table DROP COLUMN $column;" >> "$rollback_file"
+#     elif [[ "$lowercase_sql" =~ ^update[[:space:]]+([a-z0-9_]+)[[:space:]]+set[[:space:]]+.*$ ]]; then
+#         echo "-- ⚠️ Revert: Cannot determine previous values for UPDATE: $last_v_sql" >> "$rollback_file"
+#     elif [[ "$lowercase_sql" =~ ^create[[:space:]]+index[[:space:]]+([a-z0-9_]+)[[:space:]]+on[[:space:]]+([a-z0-9_]+).* ]]; then
+#         index="${BASH_REMATCH[1]}"
+#         echo "DROP INDEX $index;" >> "$rollback_file"
+#     elif [[ "$lowercase_sql" =~ ^alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+modify[[:space:]]*\(.*not[[:space:]]+null.*\) ]]; then
+#         table="${BASH_REMATCH[1]}"
+#         echo "-- ⚠️ Revert: Consider allowing NULLs again on $table; manual adjustment may be needed" >> "$rollback_file"
+#     elif [[ -n "$last_v_sql" ]]; then
+#         echo "-- ⚠️ Unrecognized EXECUTE IMMEDIATE rollback: $last_v_sql" >> "$rollback_file"
+#     fi
+
+#     last_v_sql=""
+#     continue
+# fi
+if [[ "$normalized_line" =~ ^execute[[:space:]]+immediate[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*) ]]; then
+    exec_var="${BASH_REMATCH[1]}"
+    sql_to_reverse="${dynamic_sql_vars[$exec_var]}"
+
+    if [[ -n "$sql_to_reverse" ]]; then
+        lowercase_sql="$(echo "$sql_to_reverse" | tr '[:upper:]' '[:lower:]')"
+
+        if [[ "$lowercase_sql" =~ ^update[[:space:]]+([a-z0-9_]+)[[:space:]]+set[[:space:]]+ ]]; then
+            table="${BASH_REMATCH[1]}"
+            echo "-- ⚠️ Revert: Cannot determine previous values for UPDATE on $table (from variable $exec_var)" >> "$rollback_file"
+            echo "-- ORIGINAL: $sql_to_reverse" >> "$rollback_file"
+        elif [[ "$lowercase_sql" =~ ^alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+add[[:space:]]+([a-z0-9_]+) ]]; then
+            table="${BASH_REMATCH[1]}"
+            column="${BASH_REMATCH[2]}"
+            echo "ALTER TABLE $table DROP COLUMN $column;" >> "$rollback_file"
+        elif [[ "$lowercase_sql" =~ ^create[[:space:]]+index[[:space:]]+([a-z0-9_]+)[[:space:]]+on[[:space:]]+([a-z0-9_]+).* ]]; then
+            index="${BASH_REMATCH[1]}"
+            echo "DROP INDEX $index;" >> "$rollback_file"
+        elif [[ "$lowercase_sql" =~ ^alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+modify[[:space:]]*\(.*not[[:space:]]+null.*\) ]]; then
+            table="${BASH_REMATCH[1]}"
+            echo "-- ⚠️ Revert: Consider allowing NULLs again on $table (from variable $exec_var)" >> "$rollback_file"
+        else
+            echo "-- ⚠️ Unrecognized EXECUTE IMMEDIATE rollback from $exec_var: $sql_to_reverse" >> "$rollback_file"
+        fi
+    else
+        echo "-- ⚠️ MANUAL CHECK REQUIRED: EXECUTE IMMEDIATE using unknown variable $exec_var" >> "$rollback_file"
+        echo "-- ORIGINAL: $trimmed_line" >> "$rollback_file"
     fi
-
-    last_v_sql=""
     continue
 fi
 
@@ -101,7 +179,9 @@ if [[ "$normalized_line" =~ $regex_insert ]]; then
             for i in "${!col_array[@]}"; do
                 col="$(echo "${col_array[$i]}" | xargs)"
                 raw_val="$(echo "${val_array[$i]}" | xargs)"
-                if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
+                # if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
+
+if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] && [[ -v var_map[$raw_val] ]]; then
                     val="'${var_map[$raw_val]}'"
                 else
                     [[ "$raw_val" =~ ^\'.*\'$ ]] && val="$raw_val" || val="'$raw_val'"
@@ -143,7 +223,10 @@ if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+([a-z0-9_]+).*valu
                     col="$(echo "${col_array[$i]}" | xargs)"
                     raw_val="$(echo "${val_array[$i]}" | xargs)"
 
-                    if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
+                    # if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$raw_val]}" ]]; then
+                    # if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] && [[ -v var_map[$raw_val] ]]; then
+                    if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] && [[ -v var_map[$raw_val] ]]; then
+
                         val="'${var_map[$raw_val]}'"
                     else
                         if [[ "$raw_val" =~ ^\'.*\'$ ]]; then
@@ -241,6 +324,7 @@ if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:=[[:space:]]*\'(.
     dynamic_sql_vars["$varname"]="$var_sql"
     continue
 fi
+
 if [[ "$normalized_line" =~ ^execute[[:space:]]+immediate[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*) ]]; then
     exec_var="${BASH_REMATCH[1]}"
     if [[ -n "${dynamic_sql_vars[$exec_var]}" ]]; then
