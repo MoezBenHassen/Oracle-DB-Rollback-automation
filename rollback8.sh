@@ -164,6 +164,13 @@ for sql_file in "$INPUT_DIR"/*.sql; do
             fi
             continue
         fi
+
+        # Handle DELETE FROM statements
+if [[ "$normalized_line" =~ ^delete[[:space:]]+from[[:space:]]+ ]]; then
+    echo "-- ⚠️ MANUAL CHECK REQUIRED: This DELETE statement needs careful review for rollback." >> "$rollback_file"
+    echo "-- ORIGINAL: $trimmed_line" >> "$rollback_file"
+    continue
+fi
         
      # INSERT INTO tablename VALUES (...) — fallback to PL/SQL
 if [[ "$normalized_line" == insert\ into*values* ]]; then

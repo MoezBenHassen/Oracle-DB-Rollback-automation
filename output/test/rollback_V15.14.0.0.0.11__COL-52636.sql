@@ -7,4 +7,16 @@ DELETE FROM refdata WHERE id = 'v_next_val' AND scheme = 'STATUS_AMP' AND refdat
 DELETE FROM refdata WHERE id = 'v_next_val' AND scheme = 'STATUS_AMP' AND refdatavalue = 'Substitution Accepted' AND description = 'Substitution Accepted' AND status = 11 ;
 DELETE FROM refdata WHERE id = 'v_next_val' AND scheme = 'STATUS_AMP' AND refdatavalue = 'Substitution Cancelled' AND description = 'Substitution Cancelled' AND status = 11 ;
 DELETE FROM refdata WHERE id = 'v_next_val' AND scheme = 'STATUS_AMP' AND refdatavalue = 'Proposed' AND description = 'Proposed' AND status = 11 ;
+-- ⚠️ MANUAL CHECK REQUIRED: This DELETE statement needs careful review for rollback.
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Reject Initiated';
+-- ⚠️ MANUAL CHECK REQUIRED: This DELETE statement needs careful review for rollback.
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Accept Initiated';
+-- ⚠️ MANUAL CHECK REQUIRED: This DELETE statement needs careful review for rollback.
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Initiated';
+-- ⚠️ MANUAL CHECK REQUIRED: This DELETE statement needs careful review for rollback.
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Sent';
+-- ⚠️ MANUAL CHECK REQUIRED: This DELETE statement needs careful review for rollback.
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Accept';
+-- ⚠️ MANUAL CHECK REQUIRED: This DELETE statement needs careful review for rollback.
+-- ORIGINAL: DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Cancel';
 DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-52636_Update_Substitution_AMP_Statuses' ;
