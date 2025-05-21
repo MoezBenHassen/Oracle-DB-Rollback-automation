@@ -8,5 +8,4 @@ ALTER TABLE colagreementcrossgroup DROP COLUMN xxx_dat_upd;
 -- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
 -- ORIGINAL: create_table_audit_trigger('colagreementcrossgroup');
 DROP INDEX idx_colagrcrossgroup_dat_upd;
--- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
--- ORIGINAL: INSERT INTO lrsschemaproperties (modulename, propertyname) VALUES (v_module, v_property);
+DELETE FROM lrsschemaproperties WHERE modulename = 'v_module' AND propertyname = 'v_property' ;
