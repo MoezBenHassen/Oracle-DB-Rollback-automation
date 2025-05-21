@@ -2,4 +2,4 @@
 ALTER TABLE feed_staging_good_staticdata DROP COLUMN category;
 -- ⚠️ MANUAL CHECK REQUIRED: the following UPDATE needs to be manually rolledback
 -- ORIGINAL: EXECUTE IMMEDIATE 'UPDATE ColRptInAssetSettlement SET excludeFlushed=''No''';
-DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-66233_Feed_Static_Data' ;
+DELETE FROM lrsschemaproperties WHERE modulename = 'v_module' AND propertyname = 'v_property' ;

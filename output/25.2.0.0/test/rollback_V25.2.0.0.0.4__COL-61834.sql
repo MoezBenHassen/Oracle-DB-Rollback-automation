@@ -5,4 +5,4 @@ ALTER TABLE feed_staging_good_agreement DROP COLUMN upfrontcalculmethodology;
 ALTER TABLE feed_staging_good_agreement DROP COLUMN principleupfronts;
 ALTER TABLE feed_staging_good_agreement DROP COLUMN fixedvalue;
 ALTER TABLE feed_staging_good_agreement DROP COLUMN fixedperc;
-DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-61834_Agreement_Feed_IA' ;
+DELETE FROM lrsschemaproperties WHERE modulename = 'v_module' AND propertyname = 'v_property' ;

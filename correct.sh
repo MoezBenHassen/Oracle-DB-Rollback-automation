@@ -1,14 +1,13 @@
 #!/bin/bash
 
-INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test"
-OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test"
+# INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test"
+# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test"
 
 # INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/25.2.0.0"
-# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0"
+# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/25.2.0.0/test"
 
-# INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/15.14.0.0"
-# OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/15.14.0.0"
-
+INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/15.14.0.0"
+OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/15.14.0.0/test"
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -26,37 +25,66 @@ for sql_file in "$INPUT_DIR"/*.sql; do
         trimmed_line="$(echo "$line" | sed 's/^[[:space:]]*//')"
         normalized_line="$(echo "$trimmed_line" | tr '[:upper:]' '[:lower:]')"
 
-        # Variable assignment
-        # if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[^:]*:=\ *\'([^\']*)\' ]]; then
-        #     var_map["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
-        #     continue
-        # fi
-    # Pattern for := assignment (PL/SQL-style)
-if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:=?[[:space:]]*\'([^\']*)\'[[:space:]]*\;?[[:space:]]*$ ]]; then
-    varname="${BASH_REMATCH[1]}"
-    varvalue="${BASH_REMATCH[2]}"
-    var_map["$varname"]="$varvalue"
-    dynamic_sql_vars["$varname"]="$varvalue"
-    if [[ "$varname" == "v_sql" ]]; then
-        last_v_sql="$varvalue"
-    fi
-    continue
-fi
+        # Pattern for := assignment (PL/SQL-style)
+        if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*:=?[[:space:]]*\'([^\']*)\'[[:space:]]*\;?[[:space:]]*$ ]]; then
+            varname="${BASH_REMATCH[1]}"
+            varvalue="${BASH_REMATCH[2]}"
+            var_map["$varname"]="$varvalue"
+            dynamic_sql_vars["$varname"]="$varvalue"
+            if [[ "$varname" == "v_sql" ]]; then
+                last_v_sql="$varvalue"
+            fi
+            continue
+        fi
 
-# Pattern for = assignment (SQL-style)
-if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*\'([^\']*)\'[[:space:]]*\;?[[:space:]]*$ ]]; then
-    varname="${BASH_REMATCH[1]}"
-    varvalue="${BASH_REMATCH[2]}"
-    var_map["$varname"]="$varvalue"
-    dynamic_sql_vars["$varname"]="$varvalue"
-    if [[ "$varname" == "v_sql" ]]; then
-        last_v_sql="$varvalue"
-    fi
-    continue
-fi
+        # Pattern for = assignment (SQL-style)
+        if [[ "$trimmed_line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*\'([^\']*)\'[[:space:]]*\;?[[:space:]]*$ ]]; then
+            varname="${BASH_REMATCH[1]}"
+            varvalue="${BASH_REMATCH[2]}"
+            var_map["$varname"]="$varvalue"
+            dynamic_sql_vars["$varname"]="$varvalue"
+            if [[ "$varname" == "v_sql" ]]; then
+                last_v_sql="$varvalue"
+            fi
+            continue
+        fi
 
+        # INSERT INTO ... VALUES (...) with variables
+        if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+([a-z0-9_]+).*values.* ]]; then
+            table="${BASH_REMATCH[1]}"
+            columns=$(echo "$trimmed_line" | sed -nE "s/.*INTO[[:space:]]+$table[[:space:]]*\(([^)]+)\)[[:space:]]*VALUES.*/\1/p")
+            values=$(echo "$trimmed_line" | sed -nE "s/.*VALUES[[:space:]]*\(([^)]+)\).*/\1/p")
 
-        # ALTER TABLE via EXECUTE IMMEDIATE
+            if [[ -n "$columns" && -n "$values" ]]; then
+                IFS=',' read -ra col_array <<< "$columns"
+                IFS=',' read -ra val_array <<< "$values"
+
+                if [[ ${#col_array[@]} -eq ${#val_array[@]} ]]; then
+                    where_clause=""
+                    for i in "${!col_array[@]}"; do
+                        col="$(echo "${col_array[$i]}" | xargs)"
+                        raw_val="$(echo "${val_array[$i]}" | xargs)"
+
+                        if [[ "$raw_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] && [[ -v var_map[$raw_val] ]]; then
+                            val="'${var_map[$raw_val]}'"
+                        else
+                            if [[ "$raw_val" =~ ^\'.*\'$ ]]; then
+                                val="$raw_val"
+                            else
+                                val="'$raw_val'"
+                            fi
+                        fi
+
+                        [[ "$val" =~ ^null$|^NULL$ ]] && where_clause+="$col IS NULL AND " || where_clause+="$col = $val AND "
+                    done
+                    where_clause="${where_clause%AND }"
+                    echo "DELETE FROM $table WHERE $where_clause;" >> "$rollback_file"
+                    continue
+                fi
+            fi
+        fi
+
+    # ALTER TABLE via EXECUTE IMMEDIATE
         if [[ "$normalized_line" =~ execute[[:space:]]+immediate.*alter[[:space:]]+table[[:space:]]+([a-z0-9_]+)[[:space:]]+add[[:space:]]+([a-z0-9_]+) ]]; then
             echo "ALTER TABLE ${BASH_REMATCH[1]} DROP COLUMN ${BASH_REMATCH[2]};" >> "$rollback_file"
             continue
@@ -212,7 +240,6 @@ if [[ "$normalized_line" =~ insert[[:space:]]+into[[:space:]]+([a-z0-9_]+).*valu
             cleaned_val="$(echo "$val" | xargs)"
             # if [[ "$cleaned_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${var_map[$cleaned_val]}" ]]; then
             if [[ "$cleaned_val" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] && [[ -v var_map[$cleaned_val] ]]; then
-
                 needs_resolution=true
                 break
             fi
@@ -344,6 +371,8 @@ if [[ "$normalized_line" =~ ^(insert|delete|update|merge|create|drop|alter|trunc
     echo "-- ORIGINAL: $trimmed_line" >> "$rollback_file"
     continue
 fi
+
+
 
     done < "$sql_file"
 done

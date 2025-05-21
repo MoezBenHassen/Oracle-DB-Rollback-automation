@@ -1,0 +1,4 @@
+-- 🔁 Rollback of V15.14.0.0.0.14__COL-54855.sql
+-- ⚠️ MANUAL CHECK REQUIRED: CASE NOT HANDLED
+-- ORIGINAL: EXECUTE IMMEDIATE 'ALTER TABLE FEED_STAGING_GOOD_AGREEMENT MODIFY INTERESTPAY VARCHAR2(50)';
+DELETE FROM lrsschemaproperties WHERE modulename = 'v_module' AND propertyname = 'v_property' ;
