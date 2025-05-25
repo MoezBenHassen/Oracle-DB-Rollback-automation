@@ -5,9 +5,8 @@ use File::Basename;
 use File::Path qw(make_path);
 
 # --- Configuration ---
-# NOTE: This script should run on the files produced by the formatter script.
-my $input_dir  = "C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test/formatted";
-my $output_dir = "C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test/format";
+my $input_dir  = "C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test"; # Using non-formatted for this example
+my $output_dir = "C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test/nonformat";
 
 # --- Main Logic ---
 # Ensure output directory exists
@@ -37,126 +36,232 @@ for my $sql_file (@sql_files) {
 
     # State for the current file: holds values of script variables like v_sql
     my %vars;
+    my $current_statement_buffer = ""; # For multi-line statements not ending in ;
 
     while (my $line = <$in_fh>) {
         chomp $line;
         my $trimmed_line = $line;
-        $trimmed_line =~ s/^\s+|\s+$//g;
-
+        $trimmed_line =~ s/^\s+|\s+$//g; # Trim leading/trailing whitespace for logic
+        $trimmed_line =~ s/\s*--.*$//;   # Remove comments for logic
+        
         next if $trimmed_line eq ''; # Skip empty lines
-        my $normalized_line = lc($trimmed_line);
 
-        ### --- SQL Statement Dispatcher --- ###
-
-        # 1. Variable Assignment: my_var := 'some_value';
-        # This regex correctly handles '' as an escaped quote inside the string.
-        if ($trimmed_line =~ /^\s* ([a-zA-Z_]\w*) \s* .*? := \s* ' ( (?:[^']|'')* ) ' \s* ;? $/x) {
-            my ($var_name, $var_value) = ($1, $2);
-            $vars{$var_name} = $var_value;
-            next;
+        # Accumulate lines into a buffer until a semicolon is found (or / for PL/SQL blocks)
+        # This assumes your formatter script might not perfectly put every statement on one line,
+        # or you run this on non-formatted files.
+        if ($current_statement_buffer eq "") {
+            $current_statement_buffer = $line; # Use original line for buffer
+        } else {
+            $current_statement_buffer .= "\n" . $line; # Preserve newlines in buffer
         }
+        
+        # Check if the buffered statement is complete
+        # Complete if it ends with a semicolon, or is just "/"
+        if ( $current_statement_buffer =~ /;\s*$/s || $trimmed_line eq '/' ) {
+            my $statement_to_process = $current_statement_buffer;
+            $current_statement_buffer = ""; # Reset buffer for next statement
 
-        # 2. INSERT INTO statement
-        elsif ($normalized_line =~ /^insert \s+ into \s+ ([\w.]+) \s* \( \s* ([^)]+) \s* \) \s* values \s* \( \s* (.*) \s* \) \s* ;? $/x) {
-            my ($table, $cols_str, $vals_str) = ($1, $2, $3);
+            # Process the complete statement
+            my $original_statement_for_output = $statement_to_process; # Keep original for comments
+            $original_statement_for_output =~ s/^\s+|\s+$//mg; # Trim for output consistency
 
-            my @cols = split(/\s*,\s*/, $cols_str);
-            # Robustly split CSV-like values string, respecting quotes
-            my @vals;
-            while ($vals_str =~ / (?: ( ' (?:[^']|'')* ' ) | ( [^,]+ ) ) /xg) {
-                push @vals, defined($1) ? $1 : $2;
+            $statement_to_process =~ s/[\r\n]+/ /g; # Flatten to single line for regex
+            $statement_to_process =~ s/^\s+|\s+$//g;
+            
+            my $normalized_statement = lc($statement_to_process);
+
+
+            ### --- SQL Statement Dispatcher --- ###
+
+            # 1. Variable Assignment: my_var := 'some_value';
+            if ($statement_to_process =~ /^\s* ([a-zA-Z_]\w*) \s* .*? := \s* ' ( (?:[^']|'')* ) ' \s* ;? $/x) {
+                my ($var_name, $var_value) = ($1, $2);
+                $vars{$var_name} = $var_value;
             }
 
-            # Trim whitespace from all extracted columns and values
-            for my $col (@cols) { $col =~ s/^\s+|\s+$//g; }
-            for my $val (@vals) { $val =~ s/^\s+|\s+$//g; }
+            # 2. INSERT INTO table (cols) VALUES (...) statement
+            elsif ($statement_to_process =~ /^insert \s+ into \s+ ([\w.]+) \s* \( \s* ([^)]+) \s* \) \s* values \s* \( \s* (.*) \s* \) \s* ;? $/xi) {
+                my ($table, $cols_str, $vals_str) = (lc($1), $2, $3); # Lowercase table
 
-            my @where_parts;
-            if (@cols == @vals) {
-                for my $i (0 .. $#cols) {
-                    my ($col, $val) = ($cols[$i], $vals[$i]);
-                    my $final_val = '';
+                my @cols = split(/\s*,\s*/, $cols_str);
+                my @vals;
+                while ($vals_str =~ / (?: ( ' (?:[^']|'')* ' ) | ( [^,]+ ) ) /xg) {
+                    push @vals, defined($1) ? $1 : $2;
+                }
 
-                    # A) Check if value is a literal (quoted string, number, or NULL)
-                    if ($val =~ /^'.*'$/ or $val =~ /^-?\d+(\.\d+)?$/ or lc($val) eq 'null') {
-                        $final_val = $val;
+                my @where_parts;
+                if (@cols == @vals) {
+                    for my $i (0 .. $#cols) {
+                        my $col = lc($cols[$i]); # Lowercase column name
+                        my $val = $vals[$i];
+                        $col =~ s/^\s+|\s+$//g;
+                        $val =~ s/^\s+|\s+$//g;
+                        my $final_val = '';
+
+                        if ($val =~ /^'.*'$/ or $val =~ /^-?\d+(\.\d+)?$/ or lc($val) eq 'null') {
+                            $final_val = $val;
+                        }
+                        elsif (exists $vars{$val}) {
+                            $final_val = "'" . $vars{$val} . "'";
+                        }
+                        else { next; }
+
+                        if (lc($final_val) eq 'null' or lc($final_val) eq "'null'") {
+                            push @where_parts, "$col IS NULL";
+                        } else {
+                            push @where_parts, "$col = $final_val";
+                        }
                     }
-                    # B) Check if it's a script variable we have captured
-                    elsif (exists $vars{$val}) {
-                        $final_val = "'" . $vars{$val} . "'"; # Use stored value, wrap in quotes
+                }
+
+                if (@where_parts) {
+                    my $where_clause = join(' AND ', @where_parts);
+                    print $out_fh "DELETE FROM $table WHERE $where_clause;\n";
+                } else {
+                    print $out_fh "-- ⚠️ MANUAL CHECK REQUIRED: Could not generate specific WHERE for INSERT (with cols) on $table.\n";
+                    print $out_fh "-- ORIGINAL INSERT: $original_statement_for_output\n";
+                }
+            }
+
+            # *** NEW HANDLER: INSERT INTO table VALUES (...) ***
+            elsif ($statement_to_process =~ /^insert \s+ into \s+ ([\w.]+) \s+ values \s* \( \s* (.*) \s* \) \s* ;? $/xi) {
+                my ($table_no_cols, $vals_str_no_cols) = (lc($1), $2); # Lowercase table name for consistency
+
+                my $escaped_vals_for_plsql = $vals_str_no_cols;
+                $escaped_vals_for_plsql =~ s/'/''/g; # Escape single quotes for PL/SQL CLOB literal
+
+                print $out_fh <<EOF_PLSQL;
+-- Revert: DELETE from $table_no_cols using PL/SQL metadata lookup
+-- Note: This block assumes values in the INSERT statement do not contain commas themselves.
+DECLARE
+    v_sql  CLOB := 'DELETE FROM $table_no_cols WHERE ';
+    v_vals CLOB := '$escaped_vals_for_plsql';
+    i      PLS_INTEGER := 1;
+    v_val  VARCHAR2(4000);
+    first  BOOLEAN := TRUE;
+    v_table_name VARCHAR2(128) := UPPER('$table_no_cols');
+BEGIN
+    FOR col IN (
+        SELECT column_name, data_type
+        FROM all_tab_columns
+        WHERE table_name = v_table_name
+          AND owner = USER -- Consider if schema might be different or passed as parameter
+        ORDER BY column_id
+    ) LOOP
+        -- This simple REGEXP_SUBSTR will break if values themselves contain commas.
+        -- For more complex CSV parsing in PL/SQL, a dedicated function would be needed.
+        v_val := TRIM(REGEXP_SUBSTR(v_vals, '[^,]+', 1, i));
+        EXIT WHEN v_val IS NULL AND i > 1; -- Exit if no more values (allow first value to be NULL)
+
+
+        IF NOT first THEN
+            v_sql := v_sql || ' AND ';
+        ELSE
+            first := FALSE;
+        END IF;
+
+        IF v_val IS NULL OR UPPER(v_val) = 'NULL' THEN
+            v_sql := v_sql || col.column_name || ' IS NULL';
+        ELSIF col.data_type LIKE '%CHAR%' OR col.data_type = 'CLOB' THEN
+            v_sql := v_sql || 'UPPER(' || col.column_name || ') = UPPER(' || v_val || ')';
+        ELSIF col.data_type LIKE '%DATE%' OR col.data_type LIKE '%TIMESTAMP%' THEN
+             -- For dates/timestamps, v_val must be a string literal that Oracle can implicitly convert,
+             -- or a TO_DATE/TO_TIMESTAMP expression. Example: '01-JAN-2024' or TO_DATE('20240101','YYYYMMDD')
+             v_sql := v_sql || col.column_name || ' = ' || v_val;
+        ELSE -- For numbers predominantly
+            v_sql := v_sql || col.column_name || ' = ' || v_val;
+        END IF;
+        i := i + 1;
+    END LOOP;
+
+    IF first THEN -- No conditions were added
+        DBMS_OUTPUT.PUT_LINE('-- Rollback for INSERT INTO ' || v_table_name || ': No conditions generated (e.g., no columns found or only NULL values). Manual check required.');
+        -- As a precaution, comment out the EXECUTE IMMEDIATE or make it conditional
+        -- EXECUTE IMMEDIATE 'SELECT 1 FROM DUAL'; -- No-op or error
+    ELSE
+        v_sql := v_sql || ';'; -- Add semicolon to complete the SQL
+        DBMS_OUTPUT.PUT_LINE('Generated Rollback SQL: ' || v_sql);
+        EXECUTE IMMEDIATE v_sql;
+        DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' row(s) deleted from ' || v_table_name || '.');
+    END IF;
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('-- Error during rollback of INSERT INTO ' || v_table_name || ': ' || SQLERRM);
+        DBMS_OUTPUT.PUT_LINE('-- Attempted SQL: ' || v_sql);
+        RAISE; -- Re-raise the exception to ensure failure is noted
+END;
+/
+EOF_PLSQL
+            }
+            # *** END OF NEW HANDLER ***
+
+            # 3. ALTER TABLE ADD statement
+            elsif ($normalized_statement =~ /^alter \s+ table \s+ ([\w.]+) \s+ add \s+ ([\w.]+) /x) {
+                 print $out_fh "ALTER TABLE " . lc($1) . " DROP COLUMN " . lc($2) . ";\n";
+            }
+
+            # 4. EXECUTE IMMEDIATE statement
+            elsif ($normalized_statement =~ /^execute \s+ immediate \s+ ([\w.]+) /xi) {
+                my $exec_var = $1;
+                if (exists $vars{$exec_var}) {
+                    my $sql_to_reverse = $vars{$exec_var};
+                    my $normalized_sql_to_reverse = lc($sql_to_reverse); # Use a different var name
+
+                    if ($normalized_sql_to_reverse =~ /^\s* alter \s+ table \s+ ([\w.]+) \s+ add \s+ ([\w.]+) /x) {
+                        print $out_fh "ALTER TABLE " . lc($1) . " DROP COLUMN " . lc($2) . ";\n";
                     }
-                    # C) Otherwise, skip it (it's a runtime variable like v_next_val or a function like SYSDATE)
+                    elsif ($normalized_sql_to_reverse =~ /^\s* create \s+ (?:unique\s+)? index \s+ ([\w.]+) /x) {
+                        print $out_fh "DROP INDEX " . lc($1) . ";\n";
+                    }
+                    elsif ($normalized_sql_to_reverse =~ /^\s* update\b/x) {
+                         print $out_fh "-- ⚠️ Revert: Cannot determine previous values for UPDATE from variable '$exec_var'\n";
+                         print $out_fh "-- ORIGINAL EXEC IMMEDIATE: $sql_to_reverse\n";
+                    }
                     else {
-                        next; # Skip this column/value pair
+                        print $out_fh "-- ⚠️ Unrecognized EXECUTE IMMEDIATE content from variable '$exec_var': $sql_to_reverse\n";
                     }
-
-                    # Add the condition to the WHERE clause
-                    if (lc($final_val) eq 'null' or lc($final_val) eq "'null'") {
-                        push @where_parts, "$col IS NULL";
-                    } else {
-                        push @where_parts, "$col = $final_val";
-                    }
+                } else {
+                     print $out_fh "-- ⚠️ MANUAL CHECK REQUIRED: EXECUTE IMMEDIATE using unknown or uncaptured variable '$exec_var'\n";
+                     print $out_fh "-- ORIGINAL: $original_statement_for_output\n";
                 }
             }
 
-            if (@where_parts) {
-                my $where_clause = join(' AND ', @where_parts);
-                print $out_fh "DELETE FROM $table WHERE $where_clause;\n";
-            } else {
-                print $out_fh "-- ⚠️ MANUAL CHECK REQUIRED: Could not generate a specific WHERE clause for INSERT on $table.\n";
-                print $out_fh "-- ORIGINAL INSERT: $trimmed_line\n";
+            # 5. UPDATE and DELETE statements (flag for manual review)
+            elsif ($normalized_statement =~ /^(update|delete)\b/i) {
+                 print $out_fh "-- ⚠️ MANUAL CHECK REQUIRED: $1 statement needs manual rollback.\n";
+                 print $out_fh "-- ORIGINAL: $original_statement_for_output\n";
             }
-            next;
-        }
 
-        # 3. ALTER TABLE ADD statement
-        elsif ($normalized_line =~ /^alter \s+ table \s+ ([\w.]+) \s+ add \s+ ([\w.]+) /x) {
-             print $out_fh "ALTER TABLE $1 DROP COLUMN $2;\n";
-             next;
-        }
-
-        # 4. EXECUTE IMMEDIATE statement
-        elsif ($normalized_line =~ /^execute \s+ immediate \s+ ([\w.]+) /xi) {
-            my $exec_var = $1;
-            if (exists $vars{$exec_var}) {
-                my $sql_to_reverse = $vars{$exec_var};
-                my $normalized_sql = lc($sql_to_reverse);
-
-                # Check the content of the variable for known DDL patterns
-                if ($normalized_sql =~ /^\s* alter \s+ table \s+ ([\w.]+) \s+ add \s+ ([\w.]+) /x) {
-                    print $out_fh "ALTER TABLE $1 DROP COLUMN $2;\n";
-                }
-                elsif ($normalized_sql =~ /^\s* create \s+ (?:unique\s+)? index \s+ ([\w.]+) /x) {
-                    print $out_fh "DROP INDEX $1;\n";
-                }
-                elsif ($normalized_sql =~ /^\s* update\b/x) {
-                     print $out_fh "-- ⚠️ Revert: Cannot determine previous values for UPDATE from variable '$exec_var'\n";
-                     print $out_fh "-- ORIGINAL EXEC IMMEDIATE: $sql_to_reverse\n";
-                }
-                else {
-                    print $out_fh "-- ⚠️ Unrecognized EXECUTE IMMEDIATE content from variable '$exec_var': $sql_to_reverse\n";
-                }
-            } else {
-                 print $out_fh "-- ⚠️ MANUAL CHECK REQUIRED: EXECUTE IMMEDIATE using unknown or uncaptured variable '$exec_var'\n";
-                 print $out_fh "-- ORIGINAL: $trimmed_line\n";
+            # 6. Other DDL as a fallback (flag for manual review)
+            elsif ($normalized_statement =~ /^(create|drop|truncate|rename)\b/i) {
+                print $out_fh "-- ⚠️ MANUAL CHECK REQUIRED: Unhandled DDL statement.\n";
+                print $out_fh "-- ORIGINAL: $original_statement_for_output\n";
             }
-            next;
-        }
+            # Add an else here to catch statements that fell through all specific handlers
+            else {
+                # Only print if it's not just PL/SQL structural keywords we already handle
+                unless ($original_statement_for_output =~ /^(DECLARE|BEGIN|END|EXCEPTION|IF|THEN|ELSE|ELSIF|LOOP|RETURN|COMMIT|ROLLBACK|SAVEPOINT)/i || $original_statement_for_output =~ /^\/$/) {
+                    print $out_fh "-- ❓ UNHANDLED STATEMENT (please review for manual rollback):\n";
+                    print $out_fh "-- ORIGINAL: $original_statement_for_output\n";
+                }
+            }
+        } # End if statement_is_complete
+    } # End while loop for lines
 
-        # 5. UPDATE and DELETE statements (flag for manual review)
-        elsif ($normalized_line =~ /^(update|delete)\b/i) {
-             print $out_fh "-- ⚠️ MANUAL CHECK REQUIRED: $1 statement needs manual rollback.\n";
-             print $out_fh "-- ORIGINAL: $trimmed_line\n";
-             next;
-        }
+    # After processing all lines in the file, if there's anything left in the buffer
+    # (e.g. file doesn't end with a semicolon)
+    if ($current_statement_buffer ne "") {
+        my $final_statement_to_process = $current_statement_buffer;
+        $final_statement_to_process =~ s/[\r\n]+/ /g;
+        $final_statement_to_process =~ s/^\s+|\s+$//g;
+        my $original_final_statement = $current_statement_buffer;
+        $original_final_statement =~ s/^\s+|\s+$//mg;
 
-        # 6. Other DDL as a fallback (flag for manual review)
-        elsif ($normalized_line =~ /^(create|drop|truncate|rename)\b/i) {
-            print $out_fh "-- ⚠️ MANUAL CHECK REQUIRED: Unhandled DDL statement.\n";
-            print $out_fh "-- ORIGINAL: $trimmed_line\n";
-            next;
-        }
+
+        print $out_fh "-- ❓ UNHANDLED TRAILING CONTENT (please review for manual rollback):\n";
+        print $out_fh "-- ORIGINAL: $original_final_statement\n";
     }
+
 
     close $in_fh;
     close $out_fh;
