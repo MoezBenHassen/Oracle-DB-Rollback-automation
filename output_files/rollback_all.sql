@@ -1,3 +1,4 @@
+-- ##############################################  V15.14.0.0 ##############################################
 -- 🔁 Rollback for PL/SQL V15.14.0.0.0.0__COL-26734.SQL
 -- ⚠️ MANUAL CHECK REQUIRED: ALTER TABLE column modification 
 -- EXECUTE IMMEDIATE 'alter table COLRPTOUTASSETSETTLEMENT modify USER_DEFINED_FIELD VARCHAR(1000)';
@@ -187,3 +188,4 @@ DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname
 ALTER TABLE COLWORKFLOWINTERFACEREF DROP COLUMN COLLINEISSUESUBS;
 DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-55204_Add_collineIssueSubs_field';
 
+-- ##############################################  V15.15.0.0 ##############################################

@@ -17,7 +17,6 @@ if results > 0 then
      return;
 end if;
 INSERT into preferences VALUES (LASTID , 7, '(global)', 'Stale_Approval_Restriction', 'false', null);
-insert into moezTest values (3, 'SSS', 'ccc', '456 Oak St', 'tunisia8');
 
 insert into lrsschemaproperties(modulename, propertyname) values('collateral','COL-51455_Add_field_Stale_Approve_to_Preferences');
 

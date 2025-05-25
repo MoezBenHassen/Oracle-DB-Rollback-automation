@@ -1,0 +1,370 @@
+
+you will help me manually create a "rollback" version of  .sql files and generates corresponding SQL rollback queries. These rollbacks should undo DDL and DML changes such as ALTER TABLE, INSERT INTO, and EXECUTE IMMEDIATE statements.
+
+if the input PL/SQL query has variables, make sure to replace those variables with the necessary values, for example : 
+   v_module   VARCHAR2(100) := 'collateral';
+        v_property VARCHAR2(100) := 'COL-67825-AddAuditColumnsFor_agreementcrossgroup';
+
+ INSERT INTO lrsschemaproperties (modulename, propertyname) VALUES (v_module, v_property);
+
+becomes : 
+DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-52636_Update_Substitution_AMP_Statuses' ;
+
+if a query like an insert query, doesn't specify the table columns, for example :
+insert into moezTest values (3, 'SSS', 'ccc', '456 Oak St', 'tunisia8');
+
+then give me this version isntead while replacing the correct values : 
+DECLARE
+    v_sql   CLOB := 'DELETE FROM moeztest WHERE ';
+    v_vals  CLOB := '3, ''SSS'', ''ccc'', ''456 Oak St'', ''tunisia8''';
+    i       PLS_INTEGER := 1;
+    v_val   VARCHAR2(4000);
+    first   BOOLEAN := TRUE;
+BEGIN
+    FOR col IN (
+        SELECT column_name, data_type
+        FROM all_tab_columns
+        WHERE table_name = UPPER('moeztest')
+          AND owner = USER
+        ORDER BY column_id
+    ) LOOP
+        v_val := TRIM(REGEXP_SUBSTR(v_vals, '[^,]+', 1, i));
+        EXIT WHEN v_val IS NULL;
+
+        IF NOT first THEN
+            v_sql := v_sql || ' AND ';
+        ELSE
+            first := FALSE;
+        END IF;
+
+        IF col.data_type LIKE '%CHAR%' OR col.data_type = 'CLOB' THEN
+            v_sql := v_sql || 'UPPER(' || col.column_name || ') = UPPER(' || v_val || ')';
+        ELSE
+            v_sql := v_sql || col.column_name || ' = ' || v_val;
+        END IF;
+
+        i := i + 1;
+    END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE(v_sql);
+    EXECUTE IMMEDIATE v_sql;
+END;
+
+which handles the fetch of the colnames and creatinon of the rollback delete query
+
+if an input file like this one : 
+--START
+declare
+results varchar2(10);
+v_max_id NUMBER(19);
+
+begin
+
+select count(1)
+into results
+from lrsschemaproperties l
+where l.modulename = 'collateral'
+  and l.propertyname = 'COL-52829_Adding_and_updating_the_existent_field_on_Configuration>Preferences';
+
+if results > 0 then
+    return;
+end if;
+
+select max(id) into v_max_id from preferences;
+v_max_id := v_max_id+1;
+
+INSERT INTO preferences (ID, PARENT, PREFTYPE, NAME, PREFVALUE, PREFCLASS) VALUES (v_max_id, 7, '(global)','MTA BUSINESS LINES CONFIG','41,22',NULL);
+
+insert into lrsSchemaProperties(moduleName, propertyName) values ('collateral', 'COL-52829_Adding_and_updating_the_existent_field_on_Configuration>Preferences');
+commit;
+end;
+/
+--END
+
+
+has inside the query a variable like LASTID or MAXID or v_max_id, basically a variable that represents an ID that should be fetched, make sure to rollback the query and ommit the ID from the WHERE CLAUSE 
+
+is everything clear or is there anything else I should explain before we start working ? 
+
+
+for EXECUTE IMMEDIATE CASES, extract the query and handle it as normal
+
+for the UPDATE queries, just give me a commented version with the manual check required flag
+and same for delete queries, since it's tricky to revert them automatically
+
+for any other sql query, where it's inside a variable then executed like this : 
+
+    v_sql := 'alter table colagreementcrossgroup add XXX_DAT_CRE DATE';
+    EXECUTE IMMEDIATE v_sql;
+
+
+extract the query and handle it as normal like other previous cases
+
+
+if anything else pops up, just mark it for review 
+for MODIFY queries, give them back commented with the flag, for commits, ommit them entirely
+
+for cases where we added something like a column : 
+EXECUTE IMMEDIATE 'Alter table FEED_STAGING_GOOD_AGREEMENT add referenceRatingAgencies varchar2(100)';
+EXECUTE IMMEDIATE 'Alter table FEED_STAGING_GOOD_AGREEMENT add debtClassification varchar2(50)';
+EXECUTE IMMEDIATE 'Alter table FEED_STAGING_GOOD_AGREEMENT add selectionOfAgencyDirection varchar2(50)';
+EXECUTE IMMEDIATE 'Alter table FEED_STAGING_GOOD_AGREEMENT add selectionOfAgencyUse varchar2(50)';
+EXECUTE IMMEDIATE 'Alter table FEED_STAGING_GOOD_AGREEMENT add applicationOfRating varchar2(50)';
+
+
+just give me the rollback version directly not commented 
+ommit comments like these : -- Rollback of INSERT INTO lrsschemaproperties
+
+the rollback logic for insert with no columns is always the same, using this logic : 
+
+DECLARE
+    v_sql   CLOB := 'DELETE FROM moezTest WHERE ';
+    v_vals  CLOB := '3, ''SSS'', ''ccc'', ''456 Oak St'', ''tunisia8''';
+    i       PLS_INTEGER := 1;
+    v_val   VARCHAR2(4000);
+    first   BOOLEAN := TRUE;
+BEGIN
+    FOR col IN (
+        SELECT column_name, data_type
+        FROM all_tab_columns
+        WHERE table_name = UPPER('moezTest')
+          AND owner = USER
+        ORDER BY column_id
+    ) LOOP
+        v_val := TRIM(REGEXP_SUBSTR(v_vals, '[^,]+', 1, i));
+        EXIT WHEN v_val IS NULL;
+
+        IF NOT first THEN
+            v_sql := v_sql || ' AND ';
+        ELSE
+            first := FALSE;
+        END IF;
+
+        IF col.data_type LIKE '%CHAR%' OR col.data_type = 'CLOB' THEN
+            v_sql := v_sql || 'UPPER(' || col.column_name || ') = UPPER(' || v_val || ')';
+        ELSE
+            v_sql := v_sql || col.column_name || ' = ' || v_val;
+        END IF;
+
+        i := i + 1;
+    END LOOP;
+
+    EXECUTE IMMEDIATE v_sql;
+END;
+
+
+the values, won't be the same of course as this needs to adapt to the query values 
+
+in cases where they combine the usage of an ID variable like LASTID or anything that represents that + the implementation in an insert query that doesn't specify the col names, use my logic mentioned, liek this example : 
+
+DECLARE
+    v_sql   CLOB := 'DELETE FROM mytable WHERE ';
+    v_vals  CLOB := '1, ''abc'', ''xyz'', NULL';
+    i       PLS_INTEGER := 1;
+    v_val   VARCHAR2(4000);
+    first   BOOLEAN := TRUE;
+BEGIN
+    FOR col IN (
+        SELECT column_name, data_type
+        FROM all_tab_columns
+        WHERE table_name = UPPER('mytable')
+          AND owner = USER
+        ORDER BY column_id
+    ) LOOP
+        v_val := TRIM(REGEXP_SUBSTR(v_vals, '[^,]+', 1, i));
+        EXIT WHEN v_val IS NULL;
+
+        IF NOT first THEN
+            v_sql := v_sql || ' AND ';
+        ELSE
+            first := FALSE;
+        END IF;
+
+        IF col.data_type LIKE '%CHAR%' OR col.data_type = 'CLOB' THEN
+            v_sql := v_sql || 'UPPER(' || col.column_name || ') = UPPER(' || v_val || ')';
+        ELSE
+            v_sql := v_sql || col.column_name || ' = ' || v_val;
+        END IF;
+
+        i := i + 1;
+    END LOOP;
+
+    EXECUTE IMMEDIATE v_sql;
+END;
+/
+
+
+but also ommit the ID in the where clause since in these cases it's pointless as the MAXID can change
+
+ommit any variable referring to the ID, for all places, no need to take it into accoutn and create if statements and all that shit
+
+
+for queries like : 
+EXECUTE IMMEDIATE 'Alter table COLBOOKINGRULESTEMP rename column businessLineV2 to businessLine';
+
+just reverse the naming
+
+
+
+for cases like these : 
+
+declare
+  results varchar2(10);
+
+  s_count                NUMBER(10);
+  v_next_val             NUMBER(19):=1;
+  v_max_id               NUMBER(19);
+  v_select_sequence_sql  VARCHAR(2000);
+  v_select_next_val_sql  VARCHAR(2000);
+  v_select_max_id_sql    VARCHAR(2000);
+
+begin
+
+  select count(1)
+    into results
+    from lrsschemaproperties l
+  where l.modulename = 'collateral'
+    and l.propertyname = 'COL-52636_Update_Substitution_AMP_Statuses';
+
+  if results > 0 then
+    return;
+  end if;
+
+  v_select_sequence_sql := 'SELECT count(*) FROM USER_SEQUENCES WHERE sequence_name =  upper(''CommonRefData_SEQ'')';
+  EXECUTE IMMEDIATE v_select_sequence_sql INTO s_count;
+  IF s_count > 0
+  THEN
+    v_select_next_val_sql := 'SELECT CommonRefData_SEQ.NEXTVAL FROM DUAL';
+    EXECUTE IMMEDIATE v_select_next_val_sql INTO v_next_val;
+  END IF;
+
+  v_select_max_id_sql := 'SELECT nvl(MAX (id),0) FROM RefData';
+  EXECUTE IMMEDIATE v_select_max_id_sql INTO v_max_id;
+
+  IF (v_max_id > v_next_val)
+    THEN
+      v_next_val := v_max_id+1;
+  END IF;
+
+  insert into RefData(id, scheme, refDataValue, description, status) VALUES (v_next_val,'STATUS_AMP', 'Rejected', 'Rejected', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status) VALUES (v_next_val,'STATUS_AMP', 'Substitution Accepted', 'Substitution Accepted', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Cancel Initiated', 'Cancel Initiated', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Cancel Issued', 'Cancel Issued', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status) VALUES (v_next_val,'STATUS_AMP', 'Substitution Cancelled', 'Substitution Cancelled', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Proposal Initiated', 'Proposal Initiated', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Proposal Issued', 'Proposal Issued', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status) VALUES (v_next_val,'STATUS_AMP', 'Proposed', 'Proposed', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Proposal Accepted', 'Proposal Accepted', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Proposal Rejected', 'Proposal Rejected', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Proposal Cancelled Initiated', 'Proposal Cancelled Initiated', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Proposal Cancelled Issued', 'Proposal Cancelled Issued', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Proposal Cancelled', 'Proposal Cancelled', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Propose Amended Initiated', 'Propose Amended Initiated', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Proposal Amended', 'Proposal Amended', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Replacement Added', 'Replacement Added', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Replacement Issued', 'Replacement Issued', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Create Initiated', 'Create Initiated', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Created Issued', 'Created Issued', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Amended Initiated', 'Amended Initiated', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status)
+    VALUES (v_next_val,'STATUS_AMP', 'Amended Issued', 'Amended Issued', 11);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status, flag, category, substitutionCanceled)
+    VALUES (v_next_val,'CANCELCODES_AMP', '9201', 'Replacement Collateral Unavailable', 11, 0, 0, 1);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status, flag, category, substitutionCanceled)
+    VALUES (v_next_val,'CANCELCODES_AMP', '9202', 'Requested Collateral Inaccurate', 11, 0, 0, 1);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status, flag, category, substitutionCanceled)
+    VALUES (v_next_val,'CANCELCODES_AMP', '9203', 'Asset Recall Not Required', 11, 0, 0, 1);
+  v_next_val := v_next_val+1;
+
+  insert into RefData(id, scheme, refDataValue, description, status, flag, category, substitutionCanceled)
+    VALUES (v_next_val,'CANCELCODES_AMP', '9204', 'Duplicate Request', 11, 0, 0, 1);
+
+  DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Reject Initiated';
+
+  DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Accept Initiated';
+
+  DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Initiated';
+
+  DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Sent';
+
+  DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Accept';
+
+  DELETE FROM RefData WHERE SCHEME = 'STATUS_AMP' AND refDataValue ='Substitution Cancel';
+
+  insert into lrsSchemaProperties(moduleName, propertyName) values('collateral', 'COL-52636_Update_Substitution_AMP_Statuses');
+  commit;
+end;
+/
+
+
+
+make sure to correctly generate a rollback version including the other values presented in the original insert , meaning 
+
+ insert into RefData(id, scheme, refDataValue, description, status) VALUES (v_next_val,'STATUS_AMP', 'Rejected', 'Rejected', 11);
+
+
+should be : 
+
+DELETE FROM RefData WHERE scheme = 'STATUS_AMP' AND refDataValue = 'Rejected' AND  description='Rejected' AND status=11;
