@@ -1,4 +1,0 @@
--- 🔁 Rollback of V15.14.0.0.0.11__COL-52636.sql
--- ⚠️ Unrecognized EXECUTE IMMEDIATE rollback from v_select_sequence_sql: SELECT count(*) FROM USER_SEQUENCES WHERE sequence_name =  upper(''CommonRefData_SEQ'')
--- ⚠️ Unrecognized EXECUTE IMMEDIATE rollback from v_select_next_val_sql: SELECT CommonRefData_SEQ.NEXTVAL FROM DUAL
--- ⚠️ Unrecognized EXECUTE IMMEDIATE rollback from v_select_max_id_sql: SELECT nvl(MAX (id),0) FROM RefData
