@@ -1,4 +1,4 @@
--- ##############################################  V15.14.0.0 ##############################################
+-- ##############################################  V15.14.0.0 #########################################################################################################
 -- 🔁 Rollback for PL/SQL V15.14.0.0.0.0__COL-26734.SQL
 -- ⚠️ MANUAL CHECK REQUIRED: ALTER TABLE column modification 
 -- EXECUTE IMMEDIATE 'alter table COLRPTOUTASSETSETTLEMENT modify USER_DEFINED_FIELD VARCHAR(1000)';
@@ -188,4 +188,39 @@ DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname
 ALTER TABLE COLWORKFLOWINTERFACEREF DROP COLUMN COLLINEISSUESUBS;
 DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-55204_Add_collineIssueSubs_field';
 
--- ##############################################  V15.15.0.0 ##############################################
+-- ##############################################  V15.15.0.0 #########################################################################################################
+-- 🔁 Rollback for PL/SQL V15.15.0.0.0.0__COL-56371.sql
+ALTER TABLE FEED_STAGING_GOOD_CPAMT DROP COLUMN userAgreedAmount;
+ALTER TABLE FEED_STAGING_GOOD_CPAMT DROP COLUMN overwrite;
+DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-56371_Add_fields_in_FEED_STAGING_GOOD_CPAMT';
+
+-- 🔁 Rollback for PL/SQL V15.15.0.0.0.1__COL-55454.sql
+ALTER TABLE COLRPTOUTAGREEMENTS DROP COLUMN SPLITSETTLEMENTPERIOD;
+-- ⚠️ MANUAL CHECK REQUIRED: Cannot automatically revert column modification
+-- EXECUTE IMMEDIATE 'ALTER TABLE COLRPTOUTAGREEMENTS MODIFY ASSETS VARCHAR2(4000)';
+DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-55454_Add_splitSettPeriod_field';
+
+
+-- 🔁 Rollback for PL/SQL V15.15.0.0.0.2__COL-56969.sql
+DROP SEQUENCE COLINTERESTCOUNTERPARTYDAILYDETAILS_SEQ;
+DROP SEQUENCE COLINTERESTCOUNTERPARTYDETAILS_SEQ;
+-- ⚠️ MANUAL CHECK REQUIRED: Cannot automatically revert ID updates
+-- EXECUTE IMMEDIATE 'UPDATE ColInterestCounterpartyDetails SET ID = ...';
+-- EXECUTE IMMEDIATE 'UPDATE ColInterestCounterpartyDailyDetails SET ID = ...';
+-- Drop added primary key constraints
+ALTER TABLE ColInterestCounterpartyDetails DROP CONSTRAINT pk_ColInterestCounterpartyDetails;
+ALTER TABLE ColInterestCounterpartyDailyDetails DROP CONSTRAINT pk_ColInterestCounterpartyDailyDetails;
+
+
+
+-- ##############################################  V15.15.2.0 #########################################################################################################
+-- 🔁 Rollback for PL/SQL V15.15.2.0.0.1__COL-52255.sql
+ALTER TABLE ColAgreementPartyAssets DROP COLUMN prevInternalPolicyPermitsReuse;
+ALTER TABLE ColAgreementPartyAssets DROP COLUMN forceChanged;
+DELETE FROM lrsschemaproperties WHERE modulename = 'collateral' AND propertyname = 'COL-52255_Add_fields_in_ColAgreementPartyAssets';
+
+-- 🔁 Rollback for PL/SQL V15.15.2.0.0.2__COL-58813.sql
+ALTER TABLE F3JOB DROP COLUMN archiveData;
+-- ⚠️ MANUAL CHECK REQUIRED: Cannot revert data updates
+-- EXECUTE IMMEDIATE 'update F3JOB set archivedata = 0 where archivedata is null';
+DELETE FROM lrsSchemaProperties WHERE moduleName = 'task_scheduler' AND propertyName = 'COL_9999_add_archive_data_column';
