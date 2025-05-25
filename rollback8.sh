@@ -1,6 +1,6 @@
 #!/bin/bash
 
-INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test"
+INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test/formatted"
 OUTPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test"
 
 # INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/25.2.0.0"
