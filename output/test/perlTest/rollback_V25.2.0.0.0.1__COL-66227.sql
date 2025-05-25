@@ -1,14 +1,18 @@
 -- ð Rollback of V25.2.0.0.0.1__COL-66227.sql
 -- â UNHANDLED STATEMENT (please review for manual rollback):
--- ORIGINAL: select count(1)
+-- ORIGINAL: select count(1) into results from lrsschemaproperties l where l.modulename = 'collateral' and l.propertyname = 'COL-66227_Include_Interest_On_Coupon_Reinvestment_To_The_MtM_Calc';
 -- â UNHANDLED STATEMENT (please review for manual rollback):
--- ORIGINAL: into results
+-- ORIGINAL: if
 -- â UNHANDLED STATEMENT (please review for manual rollback):
--- ORIGINAL: from lrsschemaproperties l
+-- ORIGINAL:  results > 0 
 -- â UNHANDLED STATEMENT (please review for manual rollback):
--- ORIGINAL: where l.modulename = 'collateral'
+-- ORIGINAL: then
 -- â UNHANDLED STATEMENT (please review for manual rollback):
--- ORIGINAL:   and l.propertyname = 'COL-66227_Include_Interest_On_Coupon_Reinvestment_To_The_MtM_Calc';
+-- ORIGINAL: end 
+-- â UNHANDLED STATEMENT (please review for manual rollback):
+-- ORIGINAL: if
+-- â UNHANDLED STATEMENT (please review for manual rollback):
+-- ORIGINAL: ;
 -- Revert: DELETE from moeztest using PL/SQL metadata lookup
 -- Note: This block's REGEXP_SUBSTR assumes values in the INSERT do not contain commas.
 DECLARE

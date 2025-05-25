@@ -2,9 +2,14 @@
 
 # --- Configuration ---
 # Set your source and destination directories here.
-INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test"
-FORMATTED_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test/formatted"
+# INPUT_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test"
+# FORMATTED_DIR="C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test/formatted"
 
+# INPUT_DIR="C:/Users/SBS/Desktop/Oracle-DB-Rollback-automation/input/test"
+# FORMATTED_DIR="C:/Users/SBS/Desktop/Oracle-DB-Rollback-automation/input/test/formatted"
+
+INPUT_DIR="C:/Users/SBS/Desktop/Oracle-DB-Rollback-automation/input/test"
+FORMATTED_DIR="C:/Users/SBS/Desktop/Oracle-DB-Rollback-automation/input/test/formatted"
 
 # --- Main Logic ---
 # Ensure the destination directory exists

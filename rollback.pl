@@ -7,8 +7,14 @@ use File::Path qw(make_path);
 # --- Configuration ---
 # IMPORTANT: This $input_dir should point to where your FORMATTED SQL files are.
 # For example, if your formatter script outputs to ".../test/formatted", use that.
-my $input_dir  = "C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test/formatted"; # ADJUST IF NEEDED
-my $output_dir = "C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test/nonformat"; # Your chosen output for rollbacks
+# my $input_dir  = "C:/Users/mbenhassen_tr/Desktop/sqlDirectory/input/test/formatted"; # ADJUST IF NEEDED
+# my $output_dir = "C:/Users/mbenhassen_tr/Desktop/sqlDirectory/output/test/perlTest"; # Your chosen output for rollbacks
+
+# my $input_dir  = "C:/Users/SBS/Desktop/Oracle-DB-Rollback-automation/input/test/formatted"; 
+# my $output_dir = "C:/Users/SBS/Desktop/Oracle-DB-Rollback-automation/output/test/perlTest";
+
+my $input_dir  = "C:/Users/SBS/Desktop/Oracle-DB-Rollback-automation/input/15.14.0.0"; 
+my $output_dir = "C:/Users/SBS/Desktop/Oracle-DB-Rollback-automation/output/15.14.0.0/perlTest1";
 
 # --- Main Logic ---
 make_path($output_dir) unless -d $output_dir;
