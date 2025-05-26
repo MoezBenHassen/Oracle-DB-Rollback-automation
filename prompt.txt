@@ -368,3 +368,39 @@ make sure to correctly generate a rollback version including the other values pr
 should be : 
 
 DELETE FROM RefData WHERE scheme = 'STATUS_AMP' AND refDataValue = 'Rejected' AND  description='Rejected' AND status=11;
+
+
+for cases liket hese : 
+DECLARE
+ RESULTS NUMBER;
+ V_MODULE VARCHAR2(100) := 'COLLATERAL';
+ V_PROPERTY VARCHAR2(100) := 'COL_61423_Colline_Unable_to_Consume_Invalid_Value_for_Buffer_Section';
+BEGIN
+
+ SELECT COUNT(1)
+   INTO RESULTS
+   FROM LRSSCHEMAPROPERTIES L
+  WHERE L.MODULENAME = V_MODULE
+    AND L.PROPERTYNAME = V_PROPERTY;
+
+ IF RESULTS > 0 THEN
+   RETURN;
+ END IF;
+ EXECUTE IMMEDIATE 'ALTER TABLE FEED_STAGING_GOOD_AGREEMENT ADD bufferSection_new varchar2(10)';
+ EXECUTE IMMEDIATE 'UPDATE FEED_STAGING_GOOD_AGREEMENT SET bufferSection_new = CASE WHEN bufferSection = 1 THEN ''true'' WHEN bufferSection = 0 THEN ''false'' ELSE NULL END';
+ EXECUTE IMMEDIATE 'ALTER TABLE FEED_STAGING_GOOD_AGREEMENT DROP COLUMN bufferSection';
+ EXECUTE IMMEDIATE 'ALTER TABLE FEED_STAGING_GOOD_AGREEMENT RENAME COLUMN bufferSection_new TO bufferSection';
+
+ EXECUTE IMMEDIATE 'ALTER TABLE FEED_STAGING_GOOD_AGREEMENT ADD imBufferSection_new varchar2(10)';
+ EXECUTE IMMEDIATE 'UPDATE FEED_STAGING_GOOD_AGREEMENT SET imBufferSection_new = CASE WHEN imBufferSection = 1 THEN ''true'' WHEN imBufferSection = 0 THEN ''false'' ELSE NULL END';
+ EXECUTE IMMEDIATE 'ALTER TABLE FEED_STAGING_GOOD_AGREEMENT DROP COLUMN imBufferSection';
+ EXECUTE IMMEDIATE 'ALTER TABLE FEED_STAGING_GOOD_AGREEMENT RENAME COLUMN imBufferSection_new TO imBufferSection';
+
+ INSERT INTO LRSSCHEMAPROPERTIES(MODULENAME, PROPERTYNAME) VALUES(V_MODULE,V_PROPERTY);
+
+ COMMIT;
+
+END;
+
+
+don't create a table or col named _old, that wll break the rollback, just make sure to handle the insert and delete cases of data, tables, cols ..etc, the update result will be a comment with a flag 
