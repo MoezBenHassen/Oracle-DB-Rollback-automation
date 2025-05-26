@@ -298,18 +298,141 @@ WHERE modulename = 'collateral'
 
 
 -- 🔁 Rollback for PL/SQL V15.17.0.0.0.20__COL-62691.sql
--- to be continued
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
--- 🔁 Rollback for PL/SQL
+-- Rollback for COL-62691-AddindexesonAuditColumnsFor_OSA_inter_Tables
+
+-- Check if manually dropped index needs to be recreated
+-- CREATE INDEX IDX_SEC_dat_upd ON colsecurities(xxx_dat_upd); -- MANUAL CHECK REQUIRED
+
+-- Drop created indexes
+DROP INDEX idx_COLAGREEMENTHEADER_dat_upd;
+DROP INDEX idx_F3FREQUENCYDEFINITION_dat_upd;
+DROP INDEX idx_ORGHEADER_dat_upd;
+DROP INDEX idx_COLREFDATA_dat_upd;
+DROP INDEX idx_COLSECURITIES_dat_upd;
+DROP INDEX idx_COLAGREEMENTCROSSGROUP_dat_upd;
+DROP INDEX idx_COLSCHEDULER_dat_upd;
+DROP INDEX idx_COLAGREEMENTLINKAGE_dat_upd;
+DROP INDEX idx_REFDATA_dat_upd;
+DROP INDEX idx_REGION_dat_upd;
+DROP INDEX idx_ORGREFDATA_dat_upd;
+DROP INDEX idx_COLCONCLIMITRULE_dat_upd;
+DROP INDEX idx_COLCONCLIMITCLASSRULE_dat_upd;
+DROP INDEX idx_COLWORKFLOW_dat_upd;
+DROP INDEX idx_COLAGREEMENTINVENTORYDELIVERYGROUP_dat_upd;
+DROP INDEX idx_COLFIRMPOSITION_dat_upd;
+DROP INDEX idx_COLFIRMPOSITIONNOTIONAL_dat_upd;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'collateral'
+  AND propertyname = 'COL-62691-AddindexesonAuditColumnsFor_OSA_inter_Tables';
+
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.21__COL-62691.sql
+DROP TABLE colfirmpositionNotionalDelete;
+
+DROP INDEX IDX_Frm_NOTION_DEL_ID;
+DROP INDEX IDX_Frm_NOTION_DEL_DATE;
+DROP INDEX idx_colfirmpositionNotional_dat_upd;
+
+DROP TRIGGER colfirmpositionNotional_trig_del;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'collateral'
+  AND propertyname = 'COL-62691-AddtriggerForColfirmpositionNotionalWhenDelete';
+
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.22__COL-62395.sql
+ALTER TABLE COLINVENTORYMANAGERRESET DROP COLUMN FEEDDATE;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'collateral'
+  AND propertyname = 'COL-62395_UPDATE_INVENTORY_MANAGER_RESET_WITH_FEEDDATE';
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.23__COL-60311.sql
+ALTER TABLE colrefdata DROP COLUMN match;
+ALTER TABLE orgrefdata DROP COLUMN match;
+ALTER TABLE refdata DROP COLUMN match;
+ALTER TABLE udfvaluesrefdata DROP COLUMN match;
+ALTER TABLE TRADINGREFDATA DROP COLUMN match;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'collateral'
+  AND propertyname = 'COL-60311_idg_match';
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.24__COL-56605.sql
+DELETE FROM roleprivileges
+WHERE privilege = 'collateral.tag.exceed.amount'
+  AND rolename = 'admin'
+  AND description = 'Auto Tagging';
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'Collateral'
+  AND propertyname = 'COL-56605_Add_Auto_Tag_Privilege';
+
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.25__COL-56606.sql
+ALTER TABLE COLSECURITYPARAMOUNT DROP COLUMN maxRecallByTag;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'collateral'
+  AND propertyname = 'COL-56606_Auto_tagging_logic';
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.26__COL-56607.sql
+ALTER TABLE ColAgreementInstrument DROP COLUMN maxReuseAvailable;
+ALTER TABLE ColAgreementInstrument DROP COLUMN maxReuseHolding;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'COLLATERAL'
+  AND propertyname = 'COL-56607_ReuseAvailable_ReuseHolding';
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.27__COL-56608.sql 
+DROP INDEX TAGGED_DELIVERY_PARAMOUNT_COLSECURITYPARAMOUNT;
+DROP INDEX TAGGED_DELIVERY_PARAMOUNT_COLSECURITYINFO;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'collateral'
+  AND propertyname = 'COL-56608_Inventory_Source_available';
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.28__COL-61058.sql
+ALTER TABLE colrptoutassetsettlement DROP COLUMN ownerAgreementAmount;
+ALTER TABLE colrptoutassetsettlement DROP COLUMN inventorySource;
+ALTER TABLE colrptoutassetsettlement DROP COLUMN inventorySourceAmount;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'collateral'
+  AND propertyname = 'COL-60158_Asset_Settlement_Report_S6';
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.29__COL-62700.sql
+ALTER TABLE COLFIRMPOSITION DROP COLUMN ISDELTAFEED;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'collateral'
+  AND propertyname = 'COL-62700_ADD_ISDELTAFEED_TO_COLFIRMPOSITION';
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.30__COL-56609.sql
+ALTER TABLE ColSecurityParamount DROP COLUMN rehypoFrom;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'collateral'
+  AND propertyname = 'COL_56609_rehypo_from_ColSecurityParamount';
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.31__COL-62872.sql
+ALTER TABLE COLFIRMPOSITION DROP COLUMN FEEDTIME;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'collateral'
+  AND propertyname = 'COL-62872_UPDATE_COLFIRMPOSITION_WITH_FEEDTIME';
+
+-- 🔁 Rollback for PL/SQL V15.17.0.0.0.32__COL-63186.sql
+DROP VIEW auditTrail_view;
+
+ALTER TABLE colagreementassets DROP COLUMN XXX_DAT_CRE;
+ALTER TABLE colagreementassets DROP COLUMN XXX_DAT_UPD;
+
+ALTER TABLE colassets DROP COLUMN XXX_DAT_CRE;
+ALTER TABLE colassets DROP COLUMN XXX_DAT_UPD;
+
+DELETE FROM lrsschemaproperties
+WHERE modulename = 'collateral'
+  AND propertyname = 'COL-63186-AddAuditColumnsFor_OSA_inter_Tables_v3';
+
