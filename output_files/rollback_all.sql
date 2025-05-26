@@ -690,3 +690,21 @@ ALTER TABLE FEED_STAGING_GOOD_AGREEMENT RENAME COLUMN imBufferSection_tmp TO imB
 DELETE FROM LRSSCHEMAPROPERTIES 
 WHERE moduleName = 'COLLATERAL' 
   AND propertyName = 'COL_61423_Colline_Unable_to_Consume_Invalid_Value_for_Buffer_Section';
+
+-- ##############################################  V15.16.3.0 #########################################################################################################
+-- 🔁 Rollback for PL/SQL V15.16.3.0.0.0__COL-61927.sql
+ALTER TABLE COLRPTOUTAGREEMENTS DROP COLUMN prinTargetBuffer;
+ALTER TABLE COLRPTOUTAGREEMENTS DROP COLUMN cptytargetbuffer;
+ALTER TABLE COLRPTOUTAGREEMENTS DROP COLUMN imPrinTargetBuffer;
+ALTER TABLE COLRPTOUTAGREEMENTS DROP COLUMN imcptyTargetBuffer;
+
+DELETE FROM LRSSCHEMAPROPERTIES 
+WHERE MODULENAME = 'collateralReports' 
+  AND PROPERTYNAME = 'COL-61927_Colline_crashes_when_saving_agreement_report';
+
+
+
+-- ##############################################  V15.17.0.0 #########################################################################################################
+-- ##############################################  V15.17.1.0 #########################################################################################################
+-- ##############################################  V25.1.0.0 #########################################################################################################
+-- ##############################################  V25.2.0.0 #########################################################################################################
